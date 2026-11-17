@@ -1,0 +1,3355 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>SISTEM PPKI SKTG</title>
+  <meta name="description" content="SISTEM PPKI SKTG - urus murid, rekod kehadiran dan laporan.">
+
+  <!-- ===== Meta PWA (boleh dipasang ke telefon) ===== -->
+  <meta name="theme-color" content="#1d4ed8">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PPKI SKTG">
+
+  <!-- ===== Pustaka luar (CDN) ===== -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Dark mode berasaskan class "dark" pada <html>
+    if (window.tailwind) {
+      tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'system-ui', 'Segoe UI', 'Roboto', 'sans-serif'] } } } };
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <!-- ===== Komponen Tailwind yang boleh digunakan semula ===== -->
+  <style type="text/tailwindcss">
+    @layer components {
+      .card { @apply bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm; }
+      .input { @apply w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition; }
+      .label { @apply block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1; }
+      .btn { @apply inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed; }
+      .btn-primary { @apply btn bg-blue-600 text-white hover:bg-blue-700 shadow-sm; }
+      .btn-green { @apply btn bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm; }
+      .btn-red { @apply btn bg-red-600 text-white hover:bg-red-700 shadow-sm; }
+      .btn-ghost { @apply btn border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700; }
+      .rtab { @apply flex-1 min-w-[140px] px-3 py-2 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition; }
+      .rtab.active { @apply bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-md hover:from-blue-600 hover:to-blue-500; }
+      .nav-btn { @apply flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition; }
+      .nav-btn.active { @apply bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-md hover:from-blue-600 hover:to-blue-500; }
+      .th { @apply px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400; }
+      .td { @apply px-3 py-2.5 text-sm; }
+      .kbd { @apply inline-block px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 text-[10px] font-mono font-bold; }
+      .stat-card { @apply card p-4 transition hover:-translate-y-0.5 hover:shadow-md; }
+    }
+  </style>
+
+  <!-- ===== CSS tambahan: animasi & cetak ===== -->
+  <style>
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: none; } }
+    .fade-in { animation: fadeIn .35s ease both; }
+    .toast-in { animation: toastIn .3s ease both; }
+    .scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+    .scroll-thin::-webkit-scrollbar-thumb { background: rgba(100,116,139,.4); border-radius: 8px; }
+    html { scroll-behavior: smooth; }
+
+    /* Kawasan cetak (laporan & kod QR) */
+    #printArea { display: none; color: #000; background: #fff; font-family: Arial, Helvetica, sans-serif; }
+    #printArea h1 { font-size: 18px; margin: 0 0 4px; }
+    #printArea h2 { font-size: 14px; margin: 14px 0 6px; }
+    #printArea p { font-size: 12px; margin: 2px 0; }
+    #printArea table { border-collapse: collapse; width: 100%; margin-top: 6px; }
+    #printArea th, #printArea td { border: 1px solid #444; padding: 4px 6px; font-size: 11px; text-align: left; }
+    #printArea th { background: #e5e7eb; }
+    #printArea .qr-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    #printArea .qr-card { border: 1px solid #333; border-radius: 8px; padding: 10px; text-align: center; page-break-inside: avoid; }
+    #printArea .qr-card img { width: 150px; height: 150px; }
+
+    /* ===== Borang PPM (skrin + cetak) ===== */
+    .ppm-paper { background:#fff; color:#000; font-family: Arial, Helvetica, sans-serif; color-scheme: light; }
+    .ppm-form table, #printArea .ppm-form table { border-collapse: collapse; margin: 0; width: auto; }
+    .ppm-form table.ppm-main, #printArea .ppm-form table.ppm-main { width: 100%; table-layout: fixed; }
+    .ppm-form td, .ppm-form th, #printArea .ppm-form td, #printArea .ppm-form th { border: 1px solid #000; padding: 4px 6px; font-size: 11px; line-height: 1.3; color: #000; background: #fff; vertical-align: middle; text-align: left; }
+    .ppm-form th, #printArea .ppm-form th { text-align: center; font-weight: 700; }
+    .ppm-form .c, #printArea .ppm-form .c { text-align: center; }
+    .ppm-form .ppm-note, #printArea .ppm-form .ppm-note { vertical-align: top; }
+    .ppm-form .ppm-foot, #printArea .ppm-form .ppm-foot { vertical-align: top; height: 64px; }
+    .ppm-top { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap; }
+    .ppm-form .ppm-days th, .ppm-form .ppm-days td, #printArea .ppm-form .ppm-days th, #printArea .ppm-form .ppm-days td { width: 68px; height: 24px; padding: 0 2px; text-align: center; }
+    .ppm-form .ppm-datebox th, #printArea .ppm-form .ppm-datebox th { height: 22px; text-align: center; }
+    .ppm-form .ppm-datebox td, #printArea .ppm-form .ppm-datebox td { height: 28px; text-align: center; font-weight: 700; padding: 0 8px; }
+    .ppm-form .ppm-datebox td.dd, #printArea .ppm-form .ppm-datebox td.dd, .ppm-form .ppm-datebox td.yy, #printArea .ppm-form .ppm-datebox td.yy { width: 48px; }
+    .ppm-form .ppm-datebox td.mm, #printArea .ppm-form .ppm-datebox td.mm { width: 120px; }
+    body:not(.authed) #appShell { display: none; }
+    .ppm-dayset { text-align:center; margin-top:4px; }
+    .ppm-note.has-img .ppm-ta { min-height: 90px; }
+    .ppm-fig { position:relative; margin:8px 0 0; padding:0; break-inside:avoid; page-break-inside:avoid; }
+    .ppm-fig img { display:block; width:100%; height:auto; border:1px solid #000; }
+    .ppm-fig figcaption { font-size:10px; line-height:1.3; margin-top:2px; white-space:pre-wrap; color:#000; }
+    .ppm-imgdel { position:absolute; top:4px; right:4px; background:#dc2626; color:#fff; border:0; border-radius:50%; width:22px; height:22px; font-size:12px; line-height:22px; cursor:pointer; padding:0; }
+    .ppm-addimg { display:block; width:100%; margin-top:8px; padding:6px; border:1px dashed #475569; background:#f8fafc; color:#000; font:inherit; font-size:11px; font-weight:700; border-radius:6px; cursor:pointer; }
+    .ppm-addimg:hover { background:#e0f2fe; }
+    #printArea .ppm-pg { page-break-after: always; break-after: page; }
+    #printArea .ppm-pg:last-child { page-break-after: auto; break-after: auto; }
+    .ppm-day.on { background:#dbeafe; }
+    .ppm-form .ppm-days th.on, #printArea .ppm-form .ppm-days th.on { background:#dbeafe; }
+    .ppm-edit-box { border:1px dashed #64748b; padding:10px; margin-top:8px; }
+    .ppm-edit-box textarea { width:100%; min-height:380px; border:1px solid #94a3b8; padding:8px; font:inherit; font-size:12px; color:#000; background:#fff; color-scheme: light; }
+    .ppm-hours { font-size:11px; font-weight:700; text-decoration:underline; margin:0 0 6px; }
+    .ppm-day { display:block; width:100%; height:24px; background:transparent; border:0; cursor:pointer; font-weight:700; font-size:14px; color:#000; }
+    .ppm-day:hover { background:#e0f2fe; }
+    .ppm-chk { background:transparent; border:0; color:#000; font-size:12px; cursor:pointer; padding:2px 4px; font-family:inherit; }
+    button.ppm-chk:hover { background:#e0f2fe; }
+    .ppm-box { display:inline-block; min-width:30px; text-align:center; font-weight:700; }
+    .ppm-ta { width:100%; border:0; outline:0; background:transparent; color:#000; font:inherit; font-size:11px; resize:vertical; padding:0; display:block; }
+    .ppm-ta:focus { background:#fffbe6; }
+    .ppm-note .ppm-ta { min-height:520px; }
+    .ppm-date-in { border:1px solid #cbd5e1; border-radius:4px; background:#fff; color:#000; font:inherit; font-weight:600; font-size:11px; text-align:center; width:128px; color-scheme: light; cursor:pointer; }
+    .ppm-txt { white-space:pre-wrap; font-size:11px; }
+    @media print {
+      body > *:not(#printArea) { display: none !important; }
+      #printArea { display: block !important; }
+      @page { margin: 12mm; }
+    }
+  </style>
+</head>
+
+<body class="font-sans antialiased bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors">
+
+  <!-- Simbol SVG logo PPKI (digunakan semula) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="gradLogo" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#2563eb"/><stop offset="1" stop-color="#059669"/>
+      </linearGradient>
+      <symbol id="logoPPKI" viewBox="0 0 64 64">
+        <circle cx="32" cy="32" r="30" fill="url(#gradLogo)" stroke="#ffffff" stroke-width="2.5"/>
+        <path d="M32 11 L36.6 21.2 L47.6 22.4 L39.4 29.8 L41.7 40.6 L32 35.2 L22.3 40.6 L24.6 29.8 L16.4 22.4 L27.4 21.2 Z" fill="#fde047"/>
+        <text x="32" y="55" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="800" fill="#ffffff">PPKI</text>
+      </symbol>
+    </defs>
+  </svg>
+
+  <!-- =====================================================================
+       APLIKASI UTAMA (dibuka terus, tanpa log masuk)
+       ===================================================================== -->
+  <div id="loginScreen" class="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto bg-gradient-to-br from-blue-800 via-blue-700 to-emerald-600">
+    <div class="card w-full max-w-sm p-6">
+      <div class="text-center mb-5">
+        <div class="logo-slot w-20 h-20 mx-auto flex items-center justify-center"></div>
+        <h1 class="mt-2 text-xl font-extrabold">SISTEM PPKI SKTG</h1>
+        <p id="lgSub" class="text-xs text-slate-500 dark:text-slate-400">Sila log masuk untuk meneruskan</p>
+      </div>
+
+      <form id="loginForm" class="space-y-3" autocomplete="on">
+        <div>
+          <label class="label" for="lgUser">Nama pengguna</label>
+          <input id="lgUser" class="input" type="text" autocomplete="username" autocapitalize="none" spellcheck="false">
+        </div>
+        <div>
+          <label class="label" for="lgPass">Kata laluan</label>
+          <div class="relative">
+            <input id="lgPass" class="input pr-12" type="password" autocomplete="current-password">
+            <button type="button" data-eye="lgPass" class="absolute right-2 top-1/2 -translate-y-1/2 text-lg" title="Tunjuk / sembunyi">👁</button>
+          </div>
+        </div>
+        <p id="lgErr" class="hidden text-sm text-red-600 dark:text-red-400 font-semibold"></p>
+        <button type="submit" class="btn-primary w-full">Log Masuk</button>
+      </form>
+
+      <form id="changeForm" class="hidden space-y-3" autocomplete="off">
+        <div class="rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 p-3 text-sm text-amber-900 dark:text-amber-200">
+          🔐 <b>Kata laluan lalai mesti ditukar.</b> Sila tetapkan kata laluan baharu sebelum meneruskan.
+        </div>
+        <div>
+          <label class="label" for="cgNew">Kata laluan baharu</label>
+          <div class="relative">
+            <input id="cgNew" class="input pr-12" type="password" autocomplete="new-password">
+            <button type="button" data-eye="cgNew" class="absolute right-2 top-1/2 -translate-y-1/2 text-lg" title="Tunjuk / sembunyi">👁</button>
+          </div>
+        </div>
+        <div>
+          <label class="label" for="cgNew2">Sahkan kata laluan baharu</label>
+          <input id="cgNew2" class="input" type="password" autocomplete="new-password">
+        </div>
+        <p class="text-xs text-slate-500 dark:text-slate-400">Sekurang-kurangnya 8 aksara, mengandungi huruf dan nombor, dan tidak boleh sama dengan kata laluan lalai.</p>
+        <p id="cgErr" class="hidden text-sm text-red-600 dark:text-red-400 font-semibold"></p>
+        <button type="submit" class="btn-primary w-full">Simpan &amp; Teruskan</button>
+        <button type="button" id="cgCancel" class="btn-ghost w-full">Batal</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="appShell">
+
+    <!-- ---------- HEADER ---------- -->
+    <header class="fixed top-0 inset-x-0 h-16 z-40 flex items-center gap-2 sm:gap-3 px-3 sm:px-5 text-white shadow-lg bg-gradient-to-r from-blue-800 via-blue-700 to-emerald-600">
+      <button id="btnMenu" class="md:hidden w-10 h-10 rounded-xl bg-white/15 hover:bg-white/25 text-xl" title="Menu">☰</button>
+      <button type="button" id="hdrLogo" class="logo-slot w-10 h-10 shrink-0 flex items-center justify-center drop-shadow rounded-full hover:scale-105 transition" title="Klik untuk tukar logo (Tetapan)"></button>
+      <div class="min-w-0">
+        <h1 class="text-sm sm:text-lg font-extrabold leading-tight truncate">SISTEM PPKI SKTG</h1>
+        <p class="text-[10px] sm:text-xs opacity-80 leading-tight truncate">Sistem Pengurusan Kehadiran Murid</p>
+      </div>
+
+      <div class="ml-auto flex items-center gap-1.5 sm:gap-3">
+        <!-- Jam digital & tarikh Bahasa Melayu -->
+        <div class="text-right leading-tight">
+          <div id="clockTime" class="font-mono text-base sm:text-xl font-bold tabular-nums">00:00:00</div>
+          <div id="clockDate" class="hidden sm:block text-[11px] opacity-90">-</div>
+        </div>
+        <button id="btnInstall" class="hidden px-3 h-10 rounded-xl bg-white/20 hover:bg-white/30 text-xs font-bold" title="Pasang aplikasi">⬇ Pasang</button>
+        <button id="btnFull" class="w-10 h-10 rounded-xl bg-white/15 hover:bg-white/25 text-lg" title="Skrin penuh">⛶</button>
+        <button id="btnTheme" class="w-10 h-10 rounded-xl bg-white/15 hover:bg-white/25 text-lg" title="Mod gelap/cerah">🌙</button>
+        <button id="btnLogout" class="px-3 h-10 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-bold" title="Log keluar">⎋ Keluar</button>
+      </div>
+    </header>
+
+    <!-- ---------- SIDEBAR ---------- -->
+    <div id="overlay" class="hidden fixed inset-0 top-16 z-20 bg-black/50 md:hidden"></div>
+    <aside id="sidebar" class="fixed top-16 bottom-0 left-0 w-64 z-30 -translate-x-full md:translate-x-0 transition-transform duration-300 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col">
+      <nav class="p-3 space-y-1 flex-1 overflow-y-auto scroll-thin">
+        <button class="nav-btn" data-page="dashboard"><span class="text-lg">🏠</span> Papan Pemuka</button>
+        <button class="nav-btn" data-page="murid" data-group="rekod"><span class="text-lg">🗂️</span> Rekod Murid</button>
+        <button class="nav-btn" data-page="ppm"><span class="text-lg">🧑‍🏫</span> PPM</button>
+        <button class="nav-btn" data-page="log"><span class="text-lg">📜</span> Log Aktiviti</button>
+        <button class="nav-btn" data-page="tetapan"><span class="text-lg">⚙️</span> Tetapan &amp; Backup</button>
+      </nav>
+      <div class="p-3 border-t border-slate-200 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 space-y-2">
+        <div>💾 <span id="saveStamp">Disimpan automatik</span></div>
+        <div>
+          <div class="flex justify-between mb-1"><span>Storan</span><span class="meter-text">0%</span></div>
+          <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden"><div class="meter-fill h-full bg-emerald-500 transition-all" style="width:0%"></div></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ---------- KANDUNGAN ---------- -->
+    <div class="md:ml-64 pt-16 min-h-screen flex flex-col">
+      <main class="flex-1 w-full max-w-7xl mx-auto p-4 md:p-6">
+
+        <!-- ===== TAB REKOD MURID (gabungan 4 halaman) ===== -->
+        <div id="rekodTabs" class="hidden mb-5 no-print">
+          <h2 class="text-2xl font-extrabold mb-3">🗂️ Rekod Murid</h2>
+          <div class="flex flex-wrap gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            <button type="button" class="rtab" data-rtab="murid">🧑‍🎓 Daftar Murid</button>
+            <button type="button" class="rtab" data-rtab="kehadiran">✅ Rekod Kehadiran</button>
+            <button type="button" class="rtab" data-rtab="laporan">📊 Laporan &amp; Statistik</button>
+            <button type="button" class="rtab" data-rtab="qr">🔳 Kod QR Murid</button>
+          </div>
+        </div>
+
+        <!-- ===== PAPAN PEMUKA ===== -->
+        <section id="page-dashboard" class="page hidden space-y-5">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 class="text-2xl font-extrabold">Papan Pemuka</h2>
+              <p id="dashSub" class="text-sm text-slate-500 dark:text-slate-400"></p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button class="btn-primary" data-go="kehadiran">✅ Rekod Kehadiran Hari Ini</button>
+              <button class="btn-ghost" data-go="murid">➕ Tambah Murid</button>
+            </div>
+          </div>
+          <div id="dashCards" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></div>
+          <div class="grid lg:grid-cols-3 gap-4">
+            <div class="card p-5 lg:col-span-2">
+              <h3 class="font-bold mb-3">📌 Status Kehadiran Hari Ini</h3>
+              <div id="dashToday"></div>
+            </div>
+            <div class="card p-5">
+              <h3 class="font-bold mb-1">🚨 Murid Kerap Tidak Hadir</h3>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 mb-3">Berturut-turut: amaran pada hari ke-3 / 10 / 17 / 31 &bull; Berkala (jumlah tahun ini): hari ke-10 / 20 / 40 / 60</p>
+              <div id="dashAttn" class="space-y-2 max-h-[420px] overflow-y-auto pr-1"></div>
+            </div>
+          </div>
+          <div class="card p-5">
+            <h3 class="font-bold mb-3">🕒 Aktiviti Terkini</h3>
+            <div id="dashLog" class="divide-y divide-slate-200 dark:divide-slate-700"></div>
+          </div>
+        </section>
+
+        <!-- ===== DAFTAR MURID ===== -->
+        <section id="page-murid" class="page hidden space-y-5">
+          <h2 class="text-2xl font-extrabold">Daftar Murid</h2>
+          <div class="grid lg:grid-cols-3 gap-4">
+            <div class="card p-5 lg:col-span-2">
+              <h3 id="stuFormTitle" class="font-bold text-lg mb-3">➕ Tambah Murid Baharu</h3>
+              <form id="stuForm" class="grid sm:grid-cols-2 gap-3" autocomplete="off">
+                <div>
+                  <label class="label" for="sName">Nama Penuh *</label>
+                  <input id="sName" class="input" required placeholder="cth: Muhammad Aiman bin Hakim">
+                </div>
+                <div>
+                  <label class="label" for="sId">ID Murid (auto-jana)</label>
+                  <input id="sId" class="input bg-slate-100 dark:bg-slate-700 font-mono" readonly>
+                </div>
+                <div>
+                  <label class="label" for="sJantina">Jantina *</label>
+                  <select id="sJantina" class="input" required>
+                    <option value="">-- Pilih jantina --</option>
+                    <option value="Lelaki">Lelaki</option>
+                    <option value="Perempuan">Perempuan</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="label" for="sKelas">Kelas *</label>
+                  <input id="sKelas" class="input" list="kelasList" required placeholder="cth: 1 Amanah">
+                  <datalist id="kelasList"></datalist>
+                </div>
+                <div>
+                  <label class="label" for="sPenjaga">Nama Penjaga <span class="font-normal text-slate-400">(pilihan)</span></label>
+                  <input id="sPenjaga" class="input" placeholder="cth: Hakim bin Salleh">
+                </div>
+                <div>
+                  <label class="label" for="sTelefon">No. Telefon Penjaga <span class="font-normal text-slate-400">(pilihan)</span></label>
+                  <input id="sTelefon" class="input" type="tel" placeholder="cth: 012-3456789">
+                </div>
+                <div class="sm:col-span-2 flex items-center gap-4">
+                  <div id="sFotoPrev" class="shrink-0"></div>
+                  <div class="min-w-0">
+                    <span class="label !mb-1">Foto Profil (pilihan)</span>
+                    <div class="flex flex-wrap gap-2">
+                      <button type="button" id="sFotoPick" class="btn-ghost text-xs">📷 Pilih / Tukar Foto</button>
+                      <button type="button" id="sFotoDel" class="btn-ghost text-xs hidden">🗑️ Buang Foto</button>
+                    </div>
+                    <input id="sFoto" type="file" accept="image/*" class="hidden">
+                    <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">JPG / PNG / WebP. Dipotong segi empat sama dan dikecilkan secara automatik.</p>
+                  </div>
+                </div>
+                <div class="sm:col-span-2 flex flex-wrap gap-2">
+                  <button id="sSubmit" type="submit" class="btn-primary">Tambah Murid</button>
+                  <button id="sCancel" type="button" class="btn-ghost hidden">Batal Edit</button>
+                </div>
+              </form>
+            </div>
+            <div class="card p-5">
+              <h3 class="font-bold text-lg mb-2">📥 Import Excel</h3>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                Pilih fail <b>Excel (.xlsx / .xls)</b> atau CSV. Sistem membaca baris tajuk dan menempatkan <b>Nama, Jantina, Kelas</b> (serta Nama Penjaga &amp; No. Telefon jika ada) ke lajur yang betul, walaupun susunan lajur berbeza. Jika tiada lajur Kelas, nama helaian (sheet) digunakan sebagai kelas. Anda akan melihat ringkasan untuk disahkan sebelum data disimpan.
+              </p>
+              <input id="csvFile" type="file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" class="block w-full text-sm mb-3 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:bg-blue-600 file:text-white file:font-semibold hover:file:bg-blue-700">
+              <button id="csvTemplate" class="text-xs text-blue-600 dark:text-blue-400 underline">Muat turun templat Excel</button>
+            </div>
+          </div>
+
+          <div class="card p-5">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <h3 class="font-bold text-lg">📋 Senarai Murid <span id="stuCount" class="text-sm font-normal text-slate-500"></span></h3>
+            </div>
+            <div class="grid sm:grid-cols-2 gap-2 mb-3">
+              <input id="stuSearch" class="input" type="search" placeholder="🔍 Cari pantas: nama / ID / kelas...">
+              <select id="stuKelas" class="input"></select>
+            </div>
+            <div class="overflow-x-auto scroll-thin">
+              <table class="min-w-full">
+                <thead class="bg-slate-50 dark:bg-slate-700/50">
+                  <tr><th class="th">Murid</th><th class="th">Jantina</th><th class="th">Kelas</th><th class="th">Penjaga</th><th class="th">Telefon</th><th class="th text-right">Tindakan</th></tr>
+                </thead>
+                <tbody id="stuBody" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== REKOD KEHADIRAN ===== -->
+        <section id="page-kehadiran" class="page hidden space-y-5">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 class="text-2xl font-extrabold">Rekod Kehadiran</h2>
+              <p id="attDateLabel" class="text-sm text-slate-500 dark:text-slate-400"></p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button id="btnAllPresent" class="btn-green">✔ Tandakan Semua Hadir</button>
+              <button id="btnResetDay" class="btn-red">↺ Reset Hari Ini</button>
+            </div>
+          </div>
+
+          <div class="grid lg:grid-cols-3 gap-4 items-start">
+            <!-- Lajur kiri: kalendar + ringkasan + imbas -->
+            <div class="space-y-4 lg:sticky lg:top-20">
+              <div class="card p-4">
+                <div class="flex items-center justify-between mb-3">
+                  <button id="calPrev" class="btn-ghost !px-3" title="Bulan sebelum">‹</button>
+                  <div id="calTitle" class="font-bold"></div>
+                  <button id="calNext" class="btn-ghost !px-3" title="Bulan seterusnya">›</button>
+                </div>
+                <div class="grid grid-cols-7 text-center text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  <div>Ahd</div><div>Isn</div><div>Sel</div><div>Rab</div><div>Kha</div><div>Jum</div><div>Sab</div>
+                </div>
+                <div id="calGrid" class="grid grid-cols-7 gap-1"></div>
+                <div class="flex items-center justify-between mt-3 gap-2">
+                  <button id="dayPrev" class="btn-ghost text-xs">← Hari Sebelum</button>
+                  <button id="btnToday" class="btn-primary text-xs">Hari Ini</button>
+                  <button id="dayNext" class="btn-ghost text-xs">Hari Seterusnya →</button>
+                </div>
+                <div class="flex flex-wrap gap-3 mt-3 text-[11px] text-slate-500 dark:text-slate-400">
+                  <span class="flex items-center gap-1"><i class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></i> Lengkap</span>
+                  <span class="flex items-center gap-1"><i class="w-2 h-2 rounded-full bg-amber-400 inline-block"></i> Separa</span>
+                </div>
+              </div>
+
+              <div class="card p-4">
+                <h3 class="font-bold mb-3">📈 Ringkasan Hari Ini</h3>
+                <div id="attSummary" class="space-y-2"></div>
+              </div>
+
+              <div class="card p-4">
+                <h3 class="font-bold mb-2">🔳 Imbas Kod QR / ID</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">Gunakan pengimbas USB/Bluetooth, atau taip ID lalu tekan Enter. Murid yang tiba selepas waktu masuk direkod <b>Hadir</b> dengan nota <b>Lewat</b>.</p>
+                <div class="flex gap-2">
+                  <input id="scanInput" class="input font-mono" placeholder="cth: M001" autocomplete="off">
+                  <button id="btnScan" class="btn-primary">Tanda</button>
+                </div>
+                <button id="btnCamera" class="btn-ghost w-full mt-2 text-xs">📷 Imbas guna kamera</button>
+              </div>
+
+              <div class="card p-4 text-xs text-slate-600 dark:text-slate-300">
+                <h3 class="font-bold text-sm mb-2">⌨️ Pintasan Papan Kekunci</h3>
+                <div class="grid grid-cols-2 gap-y-1.5">
+                  <div><span class="kbd">H</span> Hadir</div>
+                  <div><span class="kbd">T</span> Tidak Hadir</div>
+                  <div><span class="kbd">↑</span> <span class="kbd">↓</span> Pilih murid</div>
+                  <div><span class="kbd">N</span> Nota (Hadir)</div>
+                  <div class="col-span-2"><span class="kbd">Del</span> Kosongkan status murid dipilih</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Lajur kanan: senarai murid -->
+            <div class="lg:col-span-2 space-y-3">
+              <div class="card p-3 grid sm:grid-cols-2 gap-2">
+                <input id="attSearch" class="input" type="search" placeholder="🔍 Cari nama / ID / kelas...">
+                <select id="attKelas" class="input"></select>
+              </div>
+              <div id="attList" class="space-y-2"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== LAPORAN ===== -->
+        <section id="page-laporan" class="page hidden space-y-5">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <h2 class="text-2xl font-extrabold">Laporan &amp; Statistik</h2>
+            <div class="flex flex-wrap gap-2">
+              <button id="btnCsv" class="btn-primary">⬇ CSV</button>
+              <button id="btnPdf" class="btn-primary">📄 PDF</button>
+              <button id="btnPrint" class="btn-ghost">🖨️ Cetak Laporan Bulanan</button>
+            </div>
+          </div>
+
+          <div class="card p-4 grid sm:grid-cols-2 lg:grid-cols-6 gap-2">
+            <div><label class="label" for="repMonth">Bulan</label><input id="repMonth" type="month" class="input"></div>
+            <div><label class="label" for="repFrom">Dari Tarikh</label><input id="repFrom" type="date" class="input"></div>
+            <div><label class="label" for="repTo">Hingga Tarikh</label><input id="repTo" type="date" class="input"></div>
+            <div><label class="label" for="repKelas">Kelas</label><select id="repKelas" class="input"></select></div>
+            <div><label class="label" for="repSearch">Cari Murid</label><input id="repSearch" type="search" class="input" placeholder="Nama / ID..."></div>
+            <div>
+              <label class="label" for="repStatus">Status (jadual)</label>
+              <select id="repStatus" class="input">
+                <option value="">Semua Status</option>
+                <option value="hadir">Hadir</option>
+                <option value="tidak">Tidak Hadir</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="repCards" class="grid grid-cols-2 lg:grid-cols-3 gap-3"></div>
+          <div id="repReasons" class="card p-4"></div>
+
+          <div class="card p-5">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+              <h3 class="font-bold">🚻 Statistik Harian Mengikut Jantina</h3>
+              <button id="btnExportGender" class="btn-primary text-xs">⬇ Eksport CSV (Jantina)</button>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Bilangan rekod Hadir dan Tidak Hadir bagi murid lelaki dan perempuan setiap hari, berserta jumlah keseluruhan (mengikut tempoh dan penapis di atas).</p>
+            <div id="repGenderCards" class="grid sm:grid-cols-3 gap-3 mb-4"></div>
+            <div class="overflow-x-auto max-h-[460px] overflow-y-auto scroll-thin">
+              <table class="min-w-full text-center">
+                <thead class="bg-slate-50 dark:bg-slate-700 sticky top-0 z-10">
+                  <tr>
+                    <th class="th text-left" rowspan="2">Tarikh</th>
+                    <th class="th text-center bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300" colspan="3">♂ Lelaki</th>
+                    <th class="th text-center bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300" colspan="3">♀ Perempuan</th>
+                    <th class="th text-center bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300" colspan="4">Jumlah Keseluruhan</th>
+                  </tr>
+                  <tr>
+                    <th class="th text-center">Hadir</th><th class="th text-center">Tidak</th><th class="th text-center">Jumlah</th>
+                    <th class="th text-center">Hadir</th><th class="th text-center">Tidak</th><th class="th text-center">Jumlah</th>
+                    <th class="th text-center">Hadir</th><th class="th text-center">Tidak</th><th class="th text-center">Jumlah</th><th class="th text-center">%</th>
+                  </tr>
+                </thead>
+                <tbody id="repGenderBody" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
+                <tfoot id="repGenderFoot" class="bg-slate-100 dark:bg-slate-700 font-extrabold"></tfoot>
+              </table>
+            </div>
+            <p id="repGenderNote" class="text-xs text-amber-600 dark:text-amber-400 mt-2"></p>
+          </div>
+
+          <div class="grid lg:grid-cols-3 gap-4">
+            <div class="card p-5 lg:col-span-2">
+              <h3 class="font-bold mb-3">📊 Kehadiran Harian</h3>
+              <div class="relative h-72"><canvas id="chBar"></canvas></div>
+            </div>
+            <div class="card p-5">
+              <h3 class="font-bold mb-3">🥧 Taburan Status</h3>
+              <div class="relative h-72"><canvas id="chPie"></canvas></div>
+            </div>
+          </div>
+          <p id="chartMsg" class="hidden text-sm text-amber-600 dark:text-amber-400">Graf tidak dapat dipaparkan kerana pustaka Chart.js gagal dimuatkan (perlukan sambungan internet).</p>
+
+          <div class="card p-5">
+            <h3 class="font-bold mb-1">📈 Peratus Kehadiran Setiap Murid</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Peratus = Hadir ÷ jumlah hari yang direkodkan dalam julat tarikh.</p>
+            <div class="overflow-x-auto scroll-thin">
+              <table class="min-w-full">
+                <thead class="bg-slate-50 dark:bg-slate-700/50">
+                  <tr><th class="th">Murid</th><th class="th">Kelas</th><th class="th text-center">Hadir</th><th class="th text-center">Tidak Hadir</th><th class="th min-w-[180px]">Kehadiran</th></tr>
+                </thead>
+                <tbody id="repStudents" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card p-5">
+            <h3 class="font-bold mb-3">🗓️ Jadual Rekod Penuh <span id="repRecCount" class="text-sm font-normal text-slate-500"></span></h3>
+            <div class="overflow-x-auto max-h-[460px] overflow-y-auto scroll-thin">
+              <table class="min-w-full">
+                <thead class="bg-slate-50 dark:bg-slate-700 sticky top-0">
+                  <tr><th class="th">Tarikh</th><th class="th">Murid</th><th class="th">Kelas</th><th class="th">Status</th><th class="th">Masa</th><th class="th">Sebab / Nota</th></tr>
+                </thead>
+                <tbody id="repRecords" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== KOD QR ===== -->
+        <section id="page-qr" class="page hidden space-y-5">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 class="text-2xl font-extrabold">Kod QR Murid</h2>
+              <p class="text-sm text-slate-500 dark:text-slate-400">Cetak dan berikan kepada murid. Imbas di halaman Rekod Kehadiran untuk tanda kehadiran.</p>
+            </div>
+            <button id="btnQrPrint" class="btn-primary">🖨️ Cetak Semua Kod QR</button>
+          </div>
+          <div class="card p-3"><input id="qrSearch" class="input" type="search" placeholder="🔍 Cari nama / ID / kelas..."></div>
+          <p id="qrMsg" class="hidden text-sm text-amber-600 dark:text-amber-400">Pustaka QR gagal dimuatkan (perlukan sambungan internet).</p>
+          <div id="qrGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"></div>
+        </section>
+
+        <!-- ===== LOG AKTIVITI ===== -->
+        <!-- ===== PPM: SENARAI TUGAS HARIAN ===== -->
+        <section id="page-ppm" class="page hidden space-y-4">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 class="text-2xl font-extrabold">PPM</h2>
+              <p class="text-sm text-slate-500 dark:text-slate-400">Senarai tugas harian Pembantu Pengurusan Murid</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button class="btn-ghost" data-ppm="prev" title="Hari sebelum">◀</button>
+              <button class="btn-ghost" data-ppm="today">Hari Ini</button>
+              <button class="btn-ghost" data-ppm="next" title="Hari seterusnya">▶</button>
+              <button class="btn-ghost" data-ppm="all">☑ Tanda Semua</button>
+              <button class="btn-ghost" data-ppm="none">☐ Kosongkan</button>
+              <button class="btn-ghost" data-ppm="edit" title="Ubah senarai tugas bagi hari yang dipilih">✎ Ubah Tugas Hari Ini</button>
+              <button class="btn-primary" data-ppm="print">🖨 Cetak</button>
+              <button class="btn-primary" data-ppm="printweek" title="Cetak semua hari Isnin hingga Jumaat (satu muka surat sehari)">🖨 Cetak Isnin–Jumaat</button>
+              <button class="btn-green" data-ppm="pdf">⬇ PDF</button>
+              <button class="btn-green" data-ppm="pdfweek">⬇ PDF Isnin–Jumaat</button>
+            </div>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Klik <b>( )</b> untuk tanda √. Klik petak hari untuk tanda / buang √ hari. Tukar tarikh pada kotak TARIKH. Semua disimpan automatik dan keluar sama seperti ini apabila dicetak atau dimuat turun sebagai PDF.</p>
+          <div class="card p-3 sm:p-5 overflow-x-auto">
+            <div id="ppmForm" class="ppm-paper ppm-form mx-auto p-4 sm:p-6" style="min-width:680px;max-width:820px"></div>
+          </div>
+        </section>
+
+        <section id="page-log" class="page hidden space-y-5">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 class="text-2xl font-extrabold">Log Aktiviti</h2>
+              <p class="text-sm text-slate-500 dark:text-slate-400">Rekod siapa melakukan apa, bila, dan dari tab pelayar yang mana.</p>
+            </div>
+            <div class="flex gap-2">
+              <button id="btnLogCsv" class="btn-primary">⬇ CSV</button>
+              <button id="btnLogClear" class="btn-red">🗑️ Kosongkan Log</button>
+            </div>
+          </div>
+          <div class="card p-5">
+            <input id="logSearch" class="input mb-3" type="search" placeholder="🔍 Cari dalam log (pengguna, tindakan, butiran, tab)...">
+            <div class="overflow-x-auto max-h-[600px] overflow-y-auto scroll-thin">
+              <table class="min-w-full">
+                <thead class="bg-slate-50 dark:bg-slate-700 sticky top-0">
+                  <tr><th class="th">Masa</th><th class="th">Pengguna</th><th class="th">Tindakan</th><th class="th">Butiran</th><th class="th">Halaman</th><th class="th">Tab</th></tr>
+                </thead>
+                <tbody id="logBody" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
+              </table>
+            </div>
+            <p id="logInfo" class="text-xs text-slate-500 mt-2"></p>
+          </div>
+        </section>
+
+        <!-- ===== TETAPAN ===== -->
+        <section id="page-tetapan" class="page hidden space-y-5">
+          <h2 class="text-2xl font-extrabold">Tetapan &amp; Backup</h2>
+          <div class="grid lg:grid-cols-2 gap-4">
+
+            <div class="card p-5">
+              <h3 class="font-bold text-lg mb-1">🔐 Akaun &amp; Kata Laluan</h3>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Pengguna: <b id="accUser">-</b></p>
+              <label class="label" for="accOld">Kata laluan semasa</label>
+              <input id="accOld" type="password" class="input mb-2" autocomplete="current-password">
+              <label class="label" for="accNew">Kata laluan baharu</label>
+              <input id="accNew" type="password" class="input mb-2" autocomplete="new-password">
+              <label class="label" for="accNew2">Sahkan kata laluan baharu</label>
+              <input id="accNew2" type="password" class="input" autocomplete="new-password">
+              <p id="accErr" class="hidden text-sm text-red-600 dark:text-red-400 font-semibold mt-2"></p>
+              <div class="flex gap-2 mt-3">
+                <button id="btnChangePw" class="btn-primary">Tukar Kata Laluan</button>
+                <button id="btnLogout2" class="btn-ghost">⎋ Log Keluar</button>
+              </div>
+            </div>
+
+            <div class="card p-5">
+              <h3 class="font-bold text-lg mb-3">🕖 Tetapan Kehadiran</h3>
+              <label class="label" for="setMasuk">Waktu masuk (imbasan QR selepas waktu ini diberi nota "Lewat")</label>
+              <div class="flex gap-2">
+                <input id="setMasuk" type="time" class="input max-w-[160px]">
+                <button id="btnSaveMasuk" class="btn-primary">Simpan</button>
+              </div>
+              <hr class="my-5 border-slate-200 dark:border-slate-700">
+              <h3 class="font-bold text-lg mb-2">📦 Penggunaan Storan</h3>
+              <div class="flex justify-between text-sm mb-1"><span id="storText">-</span><span class="meter-text font-bold">0%</span></div>
+              <div class="h-2.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden"><div class="meter-fill h-full bg-emerald-500 transition-all" style="width:0%"></div></div>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">Had localStorage pelayar lazimnya sekitar 5 MB. Amaran dipaparkan apabila melebihi 80%.</p>
+            </div>
+
+            <div class="card p-5">
+              <h3 class="font-bold text-lg mb-1">☁️ Sambung Google Sheets</h3>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Data disimpan automatik ke Google Sheets dan dikongsi antara peranti/guru.</p>
+              <label class="label" for="syncUrl">URL Web App (Apps Script)</label>
+              <input id="syncUrl" type="url" class="input mb-2" placeholder="https://script.google.com/macros/s/.../exec">
+              <label class="label" for="syncEmail">Emel (mesti ada dalam senarai dibenarkan)</label>
+              <input id="syncEmail" type="email" class="input mb-2" autocomplete="off" placeholder="cikgu@gmail.com">
+              <label class="label" for="syncPin">PIN</label>
+              <input id="syncPin" type="password" class="input mb-3" autocomplete="off">
+              <div class="flex gap-2 mb-2"><button id="btnSyncSave" class="btn-primary">Simpan &amp; Sambung</button><button id="btnSyncNow" class="btn-primary">Segerak sekarang</button></div>
+              <p id="syncStatus" class="text-xs text-slate-500 dark:text-slate-400"></p>
+            </div>
+
+            <div class="card p-5">
+              <h3 class="font-bold text-lg mb-3">🖼️ Logo Sekolah / PPKI</h3>
+              <div class="flex items-center gap-4">
+                <div class="logo-slot w-24 h-24 shrink-0 flex items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-700 p-2"></div>
+                <div class="min-w-0 space-y-2">
+                  <div class="flex flex-wrap gap-2">
+                    <button id="btnLogoPick" class="btn-primary text-xs">📤 Muat Naik / Tukar Logo</button>
+                    <button id="btnLogoReset" class="btn-ghost text-xs">↺ Logo Asal</button>
+                  </div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">PNG / JPG / WebP / SVG. Gambar lutsinar (PNG) paling cantik. Logo dipaparkan di skrin log masuk, header, laporan cetak dan PDF.</p>
+                </div>
+              </div>
+              <input id="logoFile" type="file" accept="image/*" class="hidden">
+            </div>
+
+            <div class="card p-5">
+              <h3 class="font-bold text-lg mb-3">💾 Backup &amp; Restore</h3>
+              <div class="space-y-3">
+                <button id="btnBackup" class="btn-green w-full">⬇ Eksport Semua Data (JSON)</button>
+                <div>
+                  <label class="label" for="restoreFile">Restore daripada fail JSON</label>
+                  <input id="restoreFile" type="file" accept=".json,application/json" class="block w-full text-sm file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:bg-blue-600 file:text-white file:font-semibold hover:file:bg-blue-700">
+                </div>
+              </div>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-3">Backup mengandungi murid, kehadiran, tetapan dan log aktiviti. Setiap perubahan disimpan automatik ke pelayar.</p>
+            </div>
+
+            <div class="card p-5">
+              <h3 class="font-bold text-lg mb-3">🧰 Pengurusan Data</h3>
+              <div class="space-y-2">
+                <button id="btnSeed" class="btn-ghost w-full">🔄 Muat Semula Data Contoh</button>
+                <button id="btnWipe" class="btn-red w-full">🗑️ Padam Semua Data Murid &amp; Kehadiran</button>
+              </div>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-3">Kedua-dua tindakan menggantikan data semasa dan memerlukan pengesahan. Buat backup dahulu.</p>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="text-center text-xs text-slate-500 dark:text-slate-400 py-5 border-t border-slate-200 dark:border-slate-700">
+        SISTEM PPKI SKTG &copy; 2026
+      </footer>
+    </div>
+  </div>
+
+  <!-- Akar modal, toast & kawasan cetak -->
+  <input id="fotoQuick" type="file" accept="image/*" class="hidden">
+  <div id="modalRoot"></div>
+  <div id="toasts" class="fixed top-20 right-3 z-[120] space-y-2 w-[calc(100%-1.5rem)] sm:w-80 pointer-events-none"></div>
+  <div id="printArea"></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   SISTEM PPKI SKTG - LOGIK APLIKASI
+   Susunan modul:
+     1. Pemalar          7. UI (toast & modal)     13. Imbas QR / kamera
+     2. Utiliti          8. Router                 14. Laporan
+     3. Data contoh      9. Murid                  15. Kod QR
+     4. Store (simpan)  10. Statistik              16. Log (halaman)
+     5. Log aktiviti    11. Papan pemuka          17. Tetapan & backup
+     6. Auth & sesi     12. Kehadiran             18. PWA, tema, jam & init
+   ===================================================================== */
+
+/* ---------- 1. PEMALAR ---------- */
+const APP = {
+  NAMA: 'SISTEM PPKI SKTG',
+  KEY_DATA: 'ppki_data_v1',
+  KEY_LOG: 'ppki_log_v1',
+  KEY_THEME: 'ppki_tema',
+  MAX_LOG: 2000,                   // had entri log
+  STORAGE_LIMIT: 5000000,          // anggaran had localStorage (aksara)
+  TAB_ID: (function () {           // pengecam tab pelayar (untuk log aktiviti)
+    try {
+      let t = sessionStorage.getItem('ppki_tabid');
+      if (!t) { t = 'TAB-' + Math.random().toString(16).slice(2, 6).toUpperCase(); sessionStorage.setItem('ppki_tabid', t); }
+      return t;
+    } catch (e) { return 'TAB-????'; }
+  })()
+};
+
+const HARI = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
+const BULAN = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
+
+// Status kehadiran (2 sahaja): Hijau (Hadir) dan Merah (Tidak Hadir)
+const STATUS = {
+  hadir: { label: 'Hadir', key: 'H', hex: '#16a34a',
+    badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300',
+    on: 'bg-emerald-600 border-emerald-600 text-white shadow',
+    off: 'border-emerald-500/60 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30' },
+  tidak: { label: 'Tidak Hadir', key: 'T', hex: '#dc2626',
+    badge: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300',
+    on: 'bg-red-600 border-red-600 text-white shadow',
+    off: 'border-red-500/60 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30' }
+};
+const STATUS_KEYS = ['hadir', 'tidak'];
+
+// Senarai sebab tidak hadir (dropdown). "LAIN-LAIN" membuka petak teks.
+const SEBAB = ['MC/SAKIT', 'MASALAH PENGANGKUTAN', 'TIADA SEBAB MUNASABAH', 'LAIN-LAIN'];
+
+// Nilai pilihan (penjaga / telefon): kosong atau "-" dianggap tiada
+const hasVal = v => !!v && String(v).trim() !== '' && String(v).trim() !== '-';
+const dash = '<span class="text-slate-400">-</span>';
+
+// Jantina: lencana berwarna dan penormalan (untuk import CSV)
+const JANTINA = ['Lelaki', 'Perempuan'];
+function jantinaBadge(j) {
+  if (j === 'Lelaki') return '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-300">♂ Lelaki</span>';
+  if (j === 'Perempuan') return '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-pink-100 text-pink-800 dark:bg-pink-900/50 dark:text-pink-300">♀ Perempuan</span>';
+  return '<span class="text-xs text-slate-400">-</span>';
+}
+function normalizeJantina(v) {
+  const t = String(v || '').trim().toLowerCase();
+  if (!t) return '';
+  if (t[0] === 'l' || t[0] === 'm') return 'Lelaki';       // L / Lelaki / M / Male
+  if (t[0] === 'p' || t[0] === 'f') return 'Perempuan';    // P / Perempuan / F / Female
+  return '';
+}
+
+// Teks sebab/nota bagi sesuatu rekod (untuk paparan, CSV, PDF dan cetakan)
+function recReason(r) {
+  if (!r) return '';
+  if (r.status === 'tidak') {
+    if (r.sebab === 'LAIN-LAIN') return 'LAIN-LAIN' + (r.note ? ': ' + r.note : '');
+    return r.sebab || r.note || '';
+  }
+  return r.note || '';
+}
+
+// Ubah data lama (4 status) kepada 2 status: Lewat -> Hadir (nota Lewat), MC -> Tidak Hadir (MC/SAKIT)
+function normalizeAttendance(att) {
+  if (!att || typeof att !== 'object') return att;
+  Object.keys(att).forEach(d => {
+    const day = att[d];
+    if (!day || typeof day !== 'object') return;
+    Object.keys(day).forEach(id => {
+      const r = day[id];
+      if (!r) return;
+      if (r.status === 'lewat') { r.status = 'hadir'; r.note = r.note ? 'Lewat: ' + r.note : 'Lewat'; }
+      else if (r.status === 'mc') { r.status = 'tidak'; r.sebab = 'MC/SAKIT'; r.note = ''; }
+      else if (r.status === 'tidak' && r.sebab === undefined) {
+        if (r.note) { r.sebab = 'LAIN-LAIN'; } else { r.sebab = ''; }
+      }
+    });
+  });
+  return att;
+}
+
+/* ---------- 2. UTILITI ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const pad = n => String(n).padStart(2, '0');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const dateStr = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseDate = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const nowTime = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+const fmtLong = d => `${HARI[d.getDay()]}, ${d.getDate()} ${BULAN[d.getMonth()]} ${d.getFullYear()}`;   // cth: Isnin, 25 Oktober 2026
+const fmtShort = s => { if (!s) return '-'; const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
+const fmtStamp = iso => { const d = new Date(iso); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+const shortName = n => n.trim().split(/\s+/).slice(0, 2).join(' ');
+
+// Avatar inisial berwarna
+function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
+function initials(name) {
+  const p = name.trim().split(/\s+/).filter(w => !/^(bin|binti|b\.|bt\.)$/i.test(w));
+  return ((p[0] || '?')[0] + (p[1] ? p[1][0] : '')).toUpperCase();
+}
+function avatar(name, size = 'w-10 h-10 text-sm', foto) {
+  if (foto) return `<img src="${esc(foto)}" alt="${esc(name)}" class="${size} shrink-0 rounded-full object-cover shadow bg-slate-200">`;
+  const h = hashStr(name) % 360;
+  return `<div class="${size} shrink-0 rounded-full flex items-center justify-center font-bold text-white shadow" style="background:linear-gradient(135deg,hsl(${h},70%,52%),hsl(${(h + 45) % 360},70%,40%))">${esc(initials(name))}</div>`;
+}
+
+// Penghurai CSV (sokong petikan dan pemisah , atau ;)
+function parseCSV(text) {
+  text = text.replace(/^\uFEFF/, '');
+  const first = text.split(/\r?\n/)[0] || '';
+  const delim = (first.match(/;/g) || []).length > (first.match(/,/g) || []).length ? ';' : ',';
+  const rows = []; let row = [], cell = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (c === '"') inQ = false;
+      else cell += c;
+    } else if (c === '"') inQ = true;
+    else if (c === delim) { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(cell); cell = '';
+      if (row.some(x => x.trim() !== '')) rows.push(row);
+      row = [];
+    } else cell += c;
+  }
+  row.push(cell);
+  if (row.some(x => x.trim() !== '')) rows.push(row);
+  return rows.map(r => r.map(x => x.trim()));
+}
+
+function downloadBlob(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+}
+function downloadCSV(filename, rows) {
+  const csv = rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  downloadBlob(filename, '\uFEFF' + csv, 'text/csv;charset=utf-8;');   // BOM supaya Excel baca UTF-8
+}
+
+/* ---------- 3. DATA CONTOH ---------- */
+const Seed = {
+  build() {
+    const raw = [
+      ['Muhammad Aiman Hakim bin Zulkifli', '1 Amanah', 'Zulkifli bin Rahman', '012-3456701', 'Lelaki'],
+      ['Nur Aisyah binti Hamdan', '1 Amanah', 'Rohani binti Yusof', '013-4567802', 'Perempuan'],
+      ['Ahmad Daniel Hakimi bin Osman', '1 Amanah', 'Osman bin Daud', '014-5678903', 'Lelaki'],
+      ['Muhammad Haziq Danial bin Roslan', '2 Bestari', 'Roslan bin Ahmad', '016-6789004', 'Lelaki'],
+      ['Nur Damia Sofea binti Azman', '2 Bestari', 'Azman bin Latif', '017-7890105', 'Perempuan'],
+      ['Adam Irfan bin Kamarul', '2 Bestari', 'Kamarul bin Idris', '018-8901206', 'Lelaki'],
+      ['Ainul Mardhiah binti Salleh', '2 Bestari', 'Salleh bin Karim', '019-9012307', 'Perempuan'],
+      ['Siti Nurul Huda binti Samad', '3 Cekal', 'Samad bin Yaakob', '011-1023408', 'Perempuan'],
+      ['Muhammad Syafiq bin Ibrahim', '3 Cekal', 'Ibrahim bin Hassan', '010-2134509', 'Lelaki'],
+      ['Nurul Izzati binti Mansor', '3 Cekal', 'Mansor bin Ali', '012-3245610', 'Perempuan']
+    ];
+    const students = raw.map((r, i) => ({ id: 'M' + String(i + 1).padStart(3, '0'), name: r[0], kelas: r[1], penjaga: r[2], telefon: r[3], jantina: r[4], created: new Date().toISOString() }));
+    return { students, attendance: this.attendance(students), settings: { waktuMasuk: '07:30' } };
+  },
+  // Jana rekod 40 hari persekolahan lepas (tidak termasuk hari ini) supaya graf nampak hidup
+  attendance(students) {
+    function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+    const rnd = mulberry32(20261025);
+    const notesLewat = ['Bas sekolah lewat', 'Hujan lebat', 'Kesesakan lalu lintas', 'Bangun lewat'];
+    const notesLain = ['Hal keluarga', 'Menghadiri majlis kenduri', 'Temujanji klinik gigi'];
+    const pick = a => a[Math.floor(rnd() * a.length)];
+    const out = {};
+    let d = addDays(new Date(), -1), count = 0, guard = 0;
+    while (count < 40 && guard++ < 200) {
+      const wd = d.getDay();
+      if (wd !== 0 && wd !== 6 && rnd() > 0.05) {          // langkau hujung minggu & sedikit cuti rawak
+        const day = {};
+        students.forEach((s, i) => {
+          let pTidak = 0.08;                                  // kebarangkalian tidak hadir
+          if (i === 5) pTidak = 0.30;                         // murid "perhatian"
+          if (i === 8) pTidak = 0.18;
+          const st = rnd() < pTidak ? 'tidak' : 'hadir';
+          let time = '08:15:00', note = '', sebab = '';
+          if (st === 'hadir') {
+            if (rnd() < 0.08) { time = `07:${pad(32 + Math.floor(rnd() * 25))}:${pad(Math.floor(rnd() * 60))}`; note = 'Lewat: ' + pick(notesLewat); }
+            else time = `07:${pad(5 + Math.floor(rnd() * 24))}:${pad(Math.floor(rnd() * 60))}`;
+          } else {
+            const r2 = rnd();
+            sebab = r2 < 0.5 ? SEBAB[0] : r2 < 0.7 ? SEBAB[1] : r2 < 0.8 ? SEBAB[2] : SEBAB[3];
+            if (sebab === 'LAIN-LAIN') note = pick(notesLain);
+          }
+          day[s.id] = st === 'tidak' ? { status: st, time, sebab, note } : { status: st, time, note };
+        });
+        out[dateStr(d)] = day;
+        count++;
+      }
+      d = addDays(d, -1);
+    }
+    return out;
+  }
+};
+
+/* ---------- 4. STORE (localStorage + simpan automatik) ---------- */
+const Store = {
+  data: null,
+  _warned: 0,
+  load() {
+    let raw = null;
+    try { raw = JSON.parse(localStorage.getItem(APP.KEY_DATA)); } catch (e) { /* data rosak diabaikan */ }
+    if (raw && Array.isArray(raw.students) && raw.attendance && typeof raw.attendance === 'object') {
+      raw.settings = Object.assign({ waktuMasuk: '07:30' }, raw.settings || {});
+      normalizeAttendance(raw.attendance);   // sesuaikan data lama (4 status) kepada 2 status
+      this.data = raw;
+    } else {
+      this.data = Seed.build();     // kali pertama: muat data contoh
+      this.save();
+    }
+  },
+  // Dipanggil selepas setiap perubahan (auto-save)
+  save() {
+    try {
+      localStorage.setItem(APP.KEY_DATA, JSON.stringify(this.data));
+      Sync.queue();
+      this.touchSaved();
+      this.checkQuota();
+      return true;
+    } catch (e) {
+      UI.toast('Gagal menyimpan: storan pelayar penuh! Sila eksport backup dan kosongkan data lama.', 'error', 6000);
+      return false;
+    }
+  },
+  touchSaved() { const el = $('#saveStamp'); if (el) el.textContent = 'Disimpan automatik ' + nowTime(); },
+  usage() {
+    let n = 0;
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('ppki_')) n += k.length + (localStorage.getItem(k) || '').length;
+      }
+    } catch (e) { /* abaikan */ }
+    return n;
+  },
+  checkQuota() {
+    const u = this.usage();
+    const pct = Math.min(100, u / APP.STORAGE_LIMIT * 100);
+    UI.updateMeter(pct, u);
+    if (pct >= 80 && Date.now() - this._warned > 300000) {
+      this._warned = Date.now();
+      UI.toast(`⚠️ Storan hampir penuh (${pct.toFixed(0)}%). Sila eksport backup dan kosongkan log lama.`, 'warn', 7000);
+    }
+  }
+};
+
+/* ---------- 4b. SYNC GOOGLE SHEETS ---------- */
+const Sync = {
+  KEY: 'ppki_sync_v1', _t: null,
+  DEFAULT_URL: 'https://script.google.com/macros/s/AKfycbzZN_4VVSQf93K6ju2L09zEcbojyMAMLeUyWFma2CKLoNz0pxjB-IEawY17HD0IMRDdmw/exec',
+  cfg() { let c = {}; try { c = JSON.parse(localStorage.getItem(this.KEY)) || {}; } catch (e) { /* abaikan */ } if (!c.url) c.url = this.DEFAULT_URL; return c; },
+  ready() { const c = this.cfg(); return !!(c.url && c.email && c.pin); },
+  set(o) { try { localStorage.setItem(this.KEY, JSON.stringify(Object.assign(this.cfg(), o))); } catch (e) { /* abaikan */ } },
+  say(m) { const el = document.getElementById('syncStatus'); if (el) el.textContent = m; },
+  async call(payload) {
+    const c = this.cfg();
+    const r = await fetch(c.url, { method: 'POST', body: JSON.stringify(Object.assign({ email: c.email, pin: c.pin }, payload)) });
+    return r.json();
+  },
+  queue() {
+    if (!this.ready()) return;
+    this.set({ dirty: true });
+    clearTimeout(this._t);
+    this._t = setTimeout(() => this.push(), 3000);
+  },
+  async push(force) {
+    const c = this.cfg(); if (!this.ready()) return;
+    try {
+      const r = await this.call({ action: 'save', base: c.lastSync || 0, force: !!force, data: JSON.stringify(Store.data) });
+      if (r.ok) { this.set({ lastSync: r.ts, dirty: false }); this.say('✔ Disimpan ke Google Sheets • ' + nowTime()); return; }
+      if (r.conflict) {
+        if (confirm('Data di Google Sheets lebih baharu (dikemas kini oleh pengguna lain).\n\nOK = guna data Google Sheets (perubahan di peranti ini diganti)\nBatal = timpa Google Sheets dengan data peranti ini')) await this.pull(true);
+        else await this.push(true);
+      } else this.say('⚠️ ' + (r.error || 'Gagal sync'));
+    } catch (e) { this.say('⚠️ Tiada internet / URL salah. Data selamat dalam peranti, akan cuba lagi.'); }
+  },
+  async pull(forceApply) {
+    const c = this.cfg(); if (!this.ready()) return;
+    try {
+      const r = await this.call({ action: 'load' });
+      if (!r.ok) { this.say('⚠️ ' + (r.error || 'Gagal sync')); return; }
+      if (!r.data) { await this.push(true); return; }          // Sheet kosong: naikkan data peranti
+      if (r.ts > (c.lastSync || 0)) {
+        if (!forceApply && c.dirty) { await this.push(); return; }   // ada perubahan belum dihantar → semak konflik
+        localStorage.setItem(APP.KEY_DATA, r.data);
+        this.set({ lastSync: r.ts, dirty: false });
+        location.reload();
+      } else if (c.dirty) await this.push();
+      else this.say('✔ Sudah terkini • ' + nowTime());
+    } catch (e) { this.say('⚠️ Tiada internet / URL salah.'); }
+  },
+  bindUI() {
+    const c = this.cfg(), u = document.getElementById('syncUrl'), k = document.getElementById('syncPin'), em = document.getElementById('syncEmail');
+    if (!u) return;
+    u.value = c.url || ''; k.value = c.pin || ''; em.value = c.email || '';
+    this.say(this.ready() ? 'Sync aktif.' : 'Isi emel dan PIN untuk menyambung.');
+    document.getElementById('btnSyncSave').addEventListener('click', async () => {
+      this.set({ url: u.value.trim(), email: em.value.trim(), pin: k.value.trim(), lastSync: 0, dirty: false });
+      this.say('Menyambung…'); await this.pull();
+    });
+    document.getElementById('btnSyncNow').addEventListener('click', async () => { this.say('Menyegerak…'); await this.pull(); });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) this.pull(); });
+    this.pull();
+  }
+};
+
+/* ---------- 5. LOG AKTIVITI ---------- */
+const Log = {
+  list: [],
+  load() { try { const r = JSON.parse(localStorage.getItem(APP.KEY_LOG)); this.list = Array.isArray(r) ? r : []; } catch (e) { this.list = []; } },
+  save() {
+    try { localStorage.setItem(APP.KEY_LOG, JSON.stringify(this.list)); }
+    catch (e) {
+      this.list = this.list.slice(-300);
+      try { localStorage.setItem(APP.KEY_LOG, JSON.stringify(this.list)); } catch (_) { /* abaikan */ }
+    }
+  },
+  // Rekod: masa, pengguna, tindakan, butiran, halaman & tab pelayar
+  add(action, detail = '', userOverride) {
+    this.load();   // muat semula supaya log daripada tab lain tidak hilang
+    this.list.push({ t: new Date().toISOString(), user: userOverride || Auth.user || '-', action, detail, page: Router.label(), tab: APP.TAB_ID });
+    if (this.list.length > APP.MAX_LOG) this.list.splice(0, this.list.length - APP.MAX_LOG);
+    this.save();
+  }
+};
+
+/* ---------- 6. LOG MASUK & KATA LALUAN ---------- */
+// Pintu masuk di sisi pelayar sahaja (fail HTML tanpa pelayan): menghalang paparan biasa, bukan penyulitan data.
+const Auth = {
+  user: null,
+  KEY: 'ppki_auth_v2', SESS: 'ppki_sess_v2', TRY: 'ppki_try_v2',
+  DEF_USER: 'Admin01', DEF_PASS: 'admin123',
+  MAX_TRY: 5, LOCK_SEC: 60,
+  _pending: null,
+  rec() { try { const r = JSON.parse(localStorage.getItem(this.KEY)); return r && r.user && r.hash ? r : null; } catch (e) { return null; } },
+  saveRec(r) { try { localStorage.setItem(this.KEY, JSON.stringify(r)); return true; } catch (e) { UI.toast('Gagal menyimpan kata laluan (storan penuh).', 'error'); return false; } },
+  fallbackHash(str) {
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return 'F' + (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0');
+  },
+  async hash(pw, salt, force) {
+    const str = salt + '|' + pw;
+    if (force !== 'F') {
+      try {
+        if (window.crypto && crypto.subtle) {
+          const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+          return 'S' + Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
+        }
+      } catch (e) { /* guna kaedah sandaran */ }
+    }
+    return this.fallbackHash(str);
+  },
+  salt() { try { const a = new Uint8Array(12); crypto.getRandomValues(a); return Array.from(a).map(x => x.toString(16).padStart(2, '0')).join(''); } catch (e) { return String(Math.random()).slice(2) + Date.now(); } },
+  async check(u, p) {
+    const r = this.rec();
+    if (!r) return u.toLowerCase() === this.DEF_USER.toLowerCase() && p === this.DEF_PASS;   // belum pernah tukar = akaun lalai
+    if (u.toLowerCase() !== r.user.toLowerCase()) return false;
+    return (await this.hash(p, r.salt, r.hash[0])) === r.hash;
+  },
+  validate(pw, user) {
+    if (pw.length < 8) return 'Kata laluan mesti sekurang-kurangnya 8 aksara.';
+    if (!/[A-Za-z]/.test(pw) || !/\d/.test(pw)) return 'Kata laluan mesti mengandungi huruf dan nombor.';
+    if (pw.toLowerCase() === this.DEF_PASS) return 'Kata laluan baharu tidak boleh sama dengan kata laluan lalai.';
+    if (user && pw.toLowerCase() === String(user).toLowerCase()) return 'Kata laluan tidak boleh sama dengan nama pengguna.';
+    return '';
+  },
+  // ---- sekatan percubaan salah
+  tries() { try { return JSON.parse(localStorage.getItem(this.TRY)) || { n: 0, until: 0 }; } catch (e) { return { n: 0, until: 0 }; } },
+  lockLeft() { const t = this.tries(); return Math.max(0, Math.ceil((t.until - Date.now()) / 1000)); },
+  fail() {
+    const t = this.tries(); t.n = (t.until && t.until < Date.now() ? 0 : t.n) + 1;
+    if (t.n >= this.MAX_TRY) { t.until = Date.now() + this.LOCK_SEC * 1000; t.n = 0; }
+    try { localStorage.setItem(this.TRY, JSON.stringify(t)); } catch (e) { /* abaikan */ }
+    return this.MAX_TRY - t.n;
+  },
+  clearFail() { try { localStorage.removeItem(this.TRY); } catch (e) { /* abaikan */ } },
+  // ---- paparan
+  msg(id, text) { const e = $('#' + id); if (!e) return; e.textContent = text || ''; e.classList.toggle('hidden', !text); },
+  showLogin() {
+    this.user = null; this._pending = null;
+    document.body.classList.remove('authed');
+    $('#loginScreen').classList.remove('hidden');
+    $('#changeForm').classList.add('hidden'); $('#loginForm').classList.remove('hidden');
+    $('#lgSub').textContent = 'Sila log masuk untuk meneruskan';
+    $('#lgUser').value = ''; $('#lgPass').value = ''; $('#lgPass').type = 'password'; this.msg('lgErr', '');
+    setTimeout(() => $('#lgUser').focus(), 50);
+  },
+  showChange() {
+    $('#loginForm').classList.add('hidden'); $('#changeForm').classList.remove('hidden');
+    $('#lgSub').textContent = 'Tetapkan kata laluan baharu';
+    $('#cgNew').value = ''; $('#cgNew2').value = ''; this.msg('cgErr', '');
+    setTimeout(() => $('#cgNew').focus(), 50);
+  },
+  open(user) {
+    this.user = user;
+    try { sessionStorage.setItem(this.SESS, JSON.stringify({ u: user })); } catch (e) { /* abaikan */ }
+    document.body.classList.add('authed');
+    $('#loginScreen').classList.add('hidden');
+    const a = $('#accUser'); if (a) a.textContent = user;
+    App.enter();
+  },
+  logout() {
+    if (this.user) Log.add('Log keluar', this.user);
+    try { sessionStorage.removeItem(this.SESS); } catch (e) { /* abaikan */ }
+    if (UI.hasModal()) UI.closeModal();
+    Router.closeDrawer && Router.closeDrawer();
+    this.showLogin();
+  },
+  start() {
+    this.bind();
+    let ss = null; try { ss = JSON.parse(sessionStorage.getItem(this.SESS)); } catch (e) { /* abaikan */ }
+    const r = this.rec();
+    if (ss && ss.u && r && r.user.toLowerCase() === String(ss.u).toLowerCase()) this.open(r.user);
+    else this.showLogin();
+  },
+  async submitLogin() {
+    const u = $('#lgUser').value.trim(), p = $('#lgPass').value;
+    const left = this.lockLeft();
+    if (left > 0) return this.msg('lgErr', `Terlalu banyak percubaan salah. Cuba lagi dalam ${left} saat.`);
+    if (!u || !p) return this.msg('lgErr', 'Sila isi nama pengguna dan kata laluan.');
+    if (!(await this.check(u, p))) {
+      const rem = this.fail();
+      return this.msg('lgErr', rem > 0 && rem < this.MAX_TRY ? `Nama pengguna atau kata laluan salah. (${rem} percubaan lagi)` : (this.lockLeft() > 0 ? `Terlalu banyak percubaan salah. Cuba lagi dalam ${this.lockLeft()} saat.` : 'Nama pengguna atau kata laluan salah.'));
+    }
+    this.clearFail();
+    const r = this.rec();
+    if (!r) { this._pending = this.DEF_USER; this.showChange(); return; }     // akaun lalai -> wajib tukar
+    Log.add('Log masuk', r.user, r.user);
+    this.open(r.user);
+  },
+  async submitChange() {
+    const a = $('#cgNew').value, b = $('#cgNew2').value, user = this._pending;
+    if (!user) return this.showLogin();
+    const bad = this.validate(a, user); if (bad) return this.msg('cgErr', bad);
+    if (a !== b) return this.msg('cgErr', 'Pengesahan kata laluan tidak sepadan.');
+    const salt = this.salt();
+    if (!this.saveRec({ user, salt, hash: await this.hash(a, salt), changed: new Date().toISOString() })) return;
+    Log.add('Tukar kata laluan', 'Kata laluan lalai ditukar', user);
+    Log.add('Log masuk', user, user);
+    this._pending = null;
+    UI.toast('Kata laluan berjaya ditukar.');
+    this.open(user);
+  },
+  async submitSettings() {
+    const o = $('#accOld').value, a = $('#accNew').value, b = $('#accNew2').value;
+    if (!o || !a || !b) return this.msg('accErr', 'Sila isi semua ruangan.');
+    if (!(await this.check(this.user, o))) return this.msg('accErr', 'Kata laluan semasa tidak betul.');
+    const bad = this.validate(a, this.user); if (bad) return this.msg('accErr', bad);
+    if (a === o) return this.msg('accErr', 'Kata laluan baharu mesti berbeza daripada yang semasa.');
+    if (a !== b) return this.msg('accErr', 'Pengesahan kata laluan tidak sepadan.');
+    const salt = this.salt();
+    if (!this.saveRec({ user: this.user, salt, hash: await this.hash(a, salt), changed: new Date().toISOString() })) return;
+    Log.add('Tukar kata laluan', this.user);
+    ['accOld', 'accNew', 'accNew2'].forEach(id => $('#' + id).value = ''); this.msg('accErr', '');
+    UI.toast('Kata laluan berjaya ditukar.');
+  },
+  bind() {
+    $('#loginForm').addEventListener('submit', e => { e.preventDefault(); this.submitLogin(); });
+    $('#changeForm').addEventListener('submit', e => { e.preventDefault(); this.submitChange(); });
+    $('#cgCancel').addEventListener('click', () => this.showLogin());
+    $('#btnLogout').addEventListener('click', () => this.logout());
+    $('#btnLogout2').addEventListener('click', () => this.logout());
+    $('#btnChangePw').addEventListener('click', () => this.submitSettings());
+    $('#loginScreen').addEventListener('click', e => {
+      const b = e.target.closest('[data-eye]'); if (!b) return;
+      const i = $('#' + b.dataset.eye); i.type = i.type === 'password' ? 'text' : 'password';
+    });
+  }
+};
+
+/* ---------- 7. UI: TOAST & MODAL ---------- */
+const UI = {
+  toast(msg, type = 'ok', ms = 2800) {
+    const colors = { ok: 'bg-emerald-600', error: 'bg-red-600', warn: 'bg-amber-500', info: 'bg-blue-600' };
+    const el = document.createElement('div');
+    el.className = `toast-in pointer-events-auto ${colors[type] || colors.ok} text-white text-sm font-semibold px-4 py-3 rounded-xl shadow-lg`;
+    el.textContent = msg;
+    const box = $('#toasts');
+    box.appendChild(el);
+    while (box.children.length > 4) box.firstChild.remove();
+    setTimeout(() => { el.style.transition = 'opacity .3s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, ms);
+  },
+  _cur: null,
+  hasModal() { return !!this._cur; },
+  // opts: { title, body (HTML), buttons:[{label, cls, onClick}], wide, onMount(el), onClose() }
+  modal(opts) {
+    this.closeModal();
+    this._cur = opts;
+    const root = $('#modalRoot');
+    root.innerHTML = `
+      <div id="modalBackdrop" class="fixed inset-0 z-[90] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm fade-in">
+        <div class="card w-full ${opts.wide ? 'max-w-2xl' : 'max-w-md'} p-5 max-h-[92vh] overflow-y-auto scroll-thin" role="dialog" aria-modal="true">
+          <div class="flex items-start justify-between gap-3 mb-3">
+            <h3 class="font-bold text-lg">${esc(opts.title || '')}</h3>
+            <button data-close class="w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" aria-label="Tutup">✕</button>
+          </div>
+          <div id="modalBody">${opts.body || ''}</div>
+          <div id="modalFoot" class="flex flex-wrap justify-end gap-2 mt-4"></div>
+        </div>
+      </div>`;
+    const foot = $('#modalFoot', root);
+    (opts.buttons || []).forEach(b => {
+      const btn = document.createElement('button');
+      btn.className = b.cls || 'btn-ghost';
+      btn.textContent = b.label;
+      btn.addEventListener('click', () => {
+        if (b.onClick && b.onClick() === false) return;     // pulangkan false untuk kekalkan modal
+        this.closeModal();
+      });
+      foot.appendChild(btn);
+    });
+    $('[data-close]', root).addEventListener('click', () => this.closeModal());
+    $('#modalBackdrop', root).addEventListener('mousedown', e => { if (e.target.id === 'modalBackdrop') this.closeModal(); });
+    if (opts.onMount) opts.onMount($('#modalBody', root));
+  },
+  closeModal() {
+    const cur = this._cur;
+    this._cur = null;
+    $('#modalRoot').innerHTML = '';
+    if (cur && cur.onClose) { try { cur.onClose(); } catch (e) { /* abaikan */ } }
+  },
+  confirm(msg, onOk, o = {}) {
+    this.modal({
+      title: o.title || 'Pengesahan',
+      body: `<p class="text-sm text-slate-600 dark:text-slate-300">${esc(msg)}</p>`,
+      buttons: [
+        { label: 'Batal', cls: 'btn-ghost' },
+        { label: o.okLabel || 'Padam', cls: o.danger === false ? 'btn-green' : 'btn-red', onClick: () => { onOk(); } }
+      ]
+    });
+  },
+  updateMeter(pct, bytes) {
+    $$('.meter-fill').forEach(el => {
+      el.style.width = pct.toFixed(1) + '%';
+      el.className = el.className.replace(/bg-(emerald|amber|red)-500/g, '') + (pct >= 90 ? ' bg-red-500' : pct >= 80 ? ' bg-amber-500' : ' bg-emerald-500');
+    });
+    $$('.meter-text').forEach(el => { el.textContent = pct.toFixed(1) + '%'; });
+    const st = $('#storText');
+    if (st) st.textContent = `${(bytes / 1024).toFixed(1)} KB digunakan daripada ~${(APP.STORAGE_LIMIT / 1024 / 1024 * 1).toFixed(0)} MB`;
+  }
+};
+
+/* ---------- 8. ROUTER (navigasi halaman) ---------- */
+const PAGES = {
+  dashboard: { title: 'Papan Pemuka', render: () => Dash.render() },
+  murid: { title: 'Daftar Murid', render: () => Students.render() },
+  kehadiran: { title: 'Rekod Kehadiran', render: () => Att.render() },
+  laporan: { title: 'Laporan & Statistik', render: () => Rep.render() },
+  qr: { title: 'Kod QR Murid', render: () => QR.render() },
+  ppm: { title: 'PPM', render: () => PPM.render() },
+  log: { title: 'Log Aktiviti', render: () => LogPage.render() },
+  tetapan: { title: 'Tetapan & Backup', render: () => Settings.render() }
+};
+const REKOD_TABS = ['murid', 'kehadiran', 'laporan', 'qr'];   // 4 halaman dalam tab Rekod Murid
+const Router = {
+  cur: 'dashboard',
+  lastRekod: 'murid',
+  label() { return Auth.user ? (PAGES[this.cur] ? PAGES[this.cur].title : '-') : 'Skrin Log Masuk'; },
+  go(p) {
+    if (!PAGES[p]) p = 'dashboard';
+    this.cur = p;
+    $$('.page').forEach(s => s.classList.add('hidden'));
+    const sec = $('#page-' + p);
+    sec.classList.remove('hidden');
+    sec.classList.remove('fade-in'); void sec.offsetWidth; sec.classList.add('fade-in');
+    const inRekod = REKOD_TABS.includes(p);
+    if (inRekod) this.lastRekod = p;
+    $('#rekodTabs').classList.toggle('hidden', !inRekod);
+    $$('.rtab').forEach(b => b.classList.toggle('active', b.dataset.rtab === p));
+    $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.group ? inRekod : b.dataset.page === p));
+    this.closeDrawer();
+    this.refresh();
+    window.scrollTo({ top: 0 });
+  },
+  refresh() { Students.refreshClassFilters(); PAGES[this.cur].render(); },
+  openDrawer() { $('#sidebar').classList.remove('-translate-x-full'); $('#overlay').classList.remove('hidden'); },
+  closeDrawer() { $('#sidebar').classList.add('-translate-x-full'); $('#overlay').classList.add('hidden'); }
+};
+
+/* ---------- 9. MURID ---------- */
+/* ---------- LOGO (boleh ditukar) ---------- */
+const Logo = {
+  MAX: 220,
+  get() { return (Store.data && Store.data.settings && Store.data.settings.logo) || ''; },
+  // Isi semua slot logo: logo tersuai jika ada, jika tidak logo PPKI asal (SVG)
+  apply() {
+    const l = this.get();
+    $$('.logo-slot').forEach(el => {
+      el.innerHTML = l
+        ? `<img src="${esc(l)}" alt="Logo" class="w-full h-full object-contain">`
+        : '<svg class="w-full h-full"><use href="#logoPPKI"/></svg>';
+    });
+    const rb = $('#btnLogoReset'); if (rb) rb.disabled = !l;
+    try {   // ikon tab pelayar
+      let ic = document.querySelector('link[rel=icon][data-logo]');
+      if (l) {
+        if (!ic) { ic = document.createElement('link'); ic.rel = 'icon'; ic.setAttribute('data-logo', '1'); document.head.appendChild(ic); }
+        ic.href = l;
+      } else if (ic) ic.remove();
+    } catch (e) { /* abaikan */ }
+  },
+  // Kecilkan imej (kekalkan nisbah & lutsinar) -> PNG data URL
+  async process(file) {
+    if (!file || !/^image\//.test(file.type)) throw new Error('Sila pilih fail gambar (PNG / JPG / WebP / SVG).');
+    if (file.size > 15 * 1024 * 1024) throw new Error('Gambar terlalu besar (maksimum 15 MB).');
+    const url = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Gagal membaca fail.')); r.readAsDataURL(file); });
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('Gambar tidak dapat dibuka (format tidak disokong).')); i.src = url; });
+    const w0 = img.naturalWidth || img.width || this.MAX, h0 = img.naturalHeight || img.height || this.MAX;
+    const k = Math.min(1, this.MAX / Math.max(w0, h0));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w0 * k)); c.height = Math.max(1, Math.round(h0 * k));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL('image/png');
+  },
+  async change(file, input) {
+    try {
+      Store.data.settings.logo = await this.process(file);
+      if (Store.save()) { Log.add('Tukar logo', 'Logo sekolah dikemas kini'); UI.toast('Logo berjaya dikemas kini.'); }
+      this.apply();
+    } catch (e) { UI.toast(e.message, 'error', 4000); }
+    if (input) input.value = '';
+  },
+  reset() {
+    if (!this.get()) return;
+    UI.confirm('Kembalikan logo kepada logo PPKI asal?', () => {
+      delete Store.data.settings.logo;
+      Store.save(); Log.add('Reset logo', 'Logo dikembalikan kepada asal'); this.apply();
+      UI.toast('Logo asal dipulihkan.', 'warn');
+    }, { title: 'Logo Asal', okLabel: 'Ya, Pulihkan', danger: false });
+  }
+};
+
+/* ---------- FOTO PROFIL ---------- */
+const Foto = {
+  SIZE: 160,
+  // Baca imej, potong tengah (segi empat sama), kecilkan dan pulangkan data URL JPEG (jimat storan)
+  async process(file) {
+    if (!file || !/^image\//.test(file.type)) throw new Error('Sila pilih fail gambar (JPG / PNG / WebP).');
+    if (file.size > 15 * 1024 * 1024) throw new Error('Gambar terlalu besar (maksimum 15 MB).');
+    const url = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Gagal membaca fail.')); r.readAsDataURL(file); });
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('Gambar tidak dapat dibuka (format tidak disokong).')); i.src = url; });
+    const side = Math.min(img.width, img.height);
+    const c = document.createElement('canvas'); c.width = c.height = this.SIZE;
+    const x = c.getContext('2d');
+    x.fillStyle = '#ffffff'; x.fillRect(0, 0, this.SIZE, this.SIZE);
+    x.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, this.SIZE, this.SIZE);
+    return c.toDataURL('image/jpeg', 0.8);
+  }
+};
+
+const Students = {
+  editingId: null,
+  pendingFoto: null,   // null = tiada perubahan; '' = buang foto; teks = foto baharu
+  get(id) { return Store.data.students.find(s => s.id === id); },
+  genId() {
+    let max = 0;
+    Store.data.students.forEach(s => { const m = /^M(\d+)$/.exec(s.id); if (m) max = Math.max(max, +m[1]); });
+    return 'M' + String(max + 1).padStart(3, '0');
+  },
+  // Tapis ikut kata carian (nama/ID/kelas) dan kelas
+  filter(q, kelas) {
+    q = (q || '').trim().toLowerCase();
+    return Store.data.students
+      .filter(s => (!kelas || s.kelas === kelas) &&
+        (!q || s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q) || s.kelas.toLowerCase().includes(q)))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ms'));
+  },
+  refreshClassFilters() {
+    const ks = [...new Set(Store.data.students.map(s => s.kelas).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ms', { numeric: true }));
+    ['#stuKelas', '#attKelas', '#repKelas'].forEach(sel => {
+      const el = $(sel); if (!el) return;
+      const cur = el.value;
+      el.innerHTML = '<option value="">Semua Kelas</option>' + ks.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+      el.value = ks.includes(cur) ? cur : '';
+    });
+    $('#kelasList').innerHTML = ks.map(k => `<option value="${esc(k)}"></option>`).join('');
+  },
+  resetForm() {
+    this.editingId = null;
+    this.pendingFoto = null;
+    $('#stuForm').reset();
+    $('#sId').value = this.genId();
+    $('#stuFormTitle').textContent = '➕ Tambah Murid Baharu';
+    $('#sSubmit').textContent = 'Tambah Murid';
+    $('#sCancel').classList.add('hidden');
+    this.renderFotoPrev();
+  },
+  // Foto semasa dalam borang (belum disimpan / sedia ada)
+  currentFoto() {
+    if (this.pendingFoto !== null) return this.pendingFoto;
+    const s = this.editingId ? this.get(this.editingId) : null;
+    return s ? (s.foto || '') : '';
+  },
+  renderFotoPrev() {
+    const f = this.currentFoto();
+    $('#sFotoPrev').innerHTML = avatar($('#sName').value.trim() || '?', 'w-20 h-20 text-2xl', f);
+    $('#sFotoDel').classList.toggle('hidden', !f);
+  },
+  async pickFoto(file, input) {
+    try {
+      this.pendingFoto = await Foto.process(file);
+      this.renderFotoPrev();
+      UI.toast('Foto dipilih. Tekan ' + (this.editingId ? '"Simpan Perubahan"' : '"Tambah Murid"') + ' untuk menyimpan.', 'info', 3500);
+    } catch (e) { UI.toast(e.message, 'error', 4000); }
+    if (input) input.value = '';
+  },
+  // Klik avatar dalam senarai: tukar foto terus (disimpan serta-merta)
+  quickFoto(id) { this._quickId = id; $('#fotoQuick').click(); },
+  async saveQuickFoto(file, input) {
+    const s = this.get(this._quickId);
+    try {
+      if (!s) return;
+      s.foto = await Foto.process(file);
+      Log.add('Tukar foto murid', `${s.id} - ${s.name}`);
+      if (Store.save()) UI.toast(`Foto ${shortName(s.name)} dikemas kini.`);
+      if (this.editingId === s.id) this.renderFotoPrev();
+      this.render();
+    } catch (e) { UI.toast(e.message, 'error', 4000); }
+    if (input) input.value = '';
+  },
+  render() {
+    if (!this.editingId) $('#sId').value = this.genId();
+    const list = this.filter($('#stuSearch').value, $('#stuKelas').value);
+    $('#stuCount').textContent = `(${list.length} / ${Store.data.students.length})`;
+    $('#stuBody').innerHTML = list.length ? list.map(s => `
+      <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/40 transition">
+        <td class="td"><div class="flex items-center gap-3"><button type="button" data-act="foto" data-id="${esc(s.id)}" title="Klik untuk tukar foto" class="relative shrink-0 rounded-full hover:ring-2 hover:ring-blue-500 transition">${avatar(s.name, undefined, s.foto)}<span class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] flex items-center justify-center shadow">📷</span></button><div><div class="font-semibold">${esc(s.name)}</div><div class="text-xs font-mono text-slate-500">${esc(s.id)}</div></div></div></td>
+        <td class="td whitespace-nowrap">${jantinaBadge(s.jantina)}</td>
+        <td class="td whitespace-nowrap">${esc(s.kelas)}</td>
+        <td class="td">${hasVal(s.penjaga) ? esc(s.penjaga) : dash}</td>
+        <td class="td whitespace-nowrap">${hasVal(s.telefon) ? `<a class="text-blue-600 dark:text-blue-400 hover:underline" href="tel:${esc(String(s.telefon).replace(/[^0-9+]/g, ''))}">${esc(s.telefon)}</a>` : dash}</td>
+        <td class="td text-right whitespace-nowrap">
+          <button class="btn-ghost !py-1 text-xs" data-act="qr" data-id="${esc(s.id)}" title="Kod QR">🔳</button>
+          <button class="btn-ghost !py-1 text-xs" data-act="edit" data-id="${esc(s.id)}">✏️ Edit</button>
+          <button class="btn-red !py-1 text-xs" data-act="del" data-id="${esc(s.id)}">🗑️</button>
+        </td>
+      </tr>`).join('')
+      : `<tr><td colspan="6" class="td text-center text-slate-500 py-10">${Store.data.students.length ? 'Tiada murid sepadan dengan carian.' : 'Belum ada murid. Tambah melalui borang atau import Excel.'}</td></tr>`;
+  },
+  validPhone(t) { return /^[0-9+\-\s()]+$/.test(t) && t.replace(/\D/g, '').length >= 9 && t.replace(/\D/g, '').length <= 13; },
+  submit(e) {
+    e.preventDefault();
+    const name = $('#sName').value.trim(), kelas = $('#sKelas').value.trim(),
+      penjaga = $('#sPenjaga').value.trim(), telefon = $('#sTelefon').value.trim(),
+      jantina = $('#sJantina').value;
+    if (!name || !kelas || !JANTINA.includes(jantina)) { UI.toast('Sila isi Nama, Jantina dan Kelas.', 'error'); return; }
+    if (telefon && !this.validPhone(telefon)) { UI.toast('No. telefon tidak sah (9 hingga 13 digit).', 'error'); return; }
+
+    if (this.editingId) {
+      const s = this.get(this.editingId);
+      if (s) {
+        s.name = name; s.kelas = kelas; s.penjaga = penjaga; s.telefon = telefon; s.jantina = jantina;
+        if (this.pendingFoto !== null) { if (this.pendingFoto) s.foto = this.pendingFoto; else delete s.foto; }
+      }
+      Log.add('Edit murid', `${this.editingId} - ${name}`);
+      UI.toast('Maklumat murid dikemas kini.');
+    } else {
+      if (Store.data.students.some(s => s.name.toLowerCase() === name.toLowerCase() && s.kelas === kelas)) {
+        UI.toast('Murid dengan nama dan kelas yang sama sudah wujud.', 'warn'); return;
+      }
+      const id = this.genId();
+      const baru = { id, name, jantina, kelas, penjaga, telefon, created: new Date().toISOString() };
+      if (this.pendingFoto) baru.foto = this.pendingFoto;
+      Store.data.students.push(baru);
+      Log.add('Tambah murid', `${id} - ${name} (${kelas})`);
+      UI.toast(`Murid ${shortName(name)} didaftarkan (${id}).`);
+    }
+    Store.save();
+    this.resetForm();
+    this.refreshClassFilters();
+    this.render();
+  },
+  startEdit(id) {
+    const s = this.get(id); if (!s) return;
+    this.editingId = id;
+    $('#sName').value = s.name; $('#sId').value = s.id; $('#sKelas').value = s.kelas;
+    $('#sPenjaga').value = hasVal(s.penjaga) ? s.penjaga : ''; $('#sTelefon').value = hasVal(s.telefon) ? s.telefon : ''; $('#sJantina').value = s.jantina || '';
+    $('#stuFormTitle').textContent = '✏️ Edit Murid: ' + s.id;
+    $('#sSubmit').textContent = 'Simpan Perubahan';
+    $('#sCancel').classList.remove('hidden');
+    this.pendingFoto = null;
+    this.renderFotoPrev();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    $('#sName').focus();
+  },
+  remove(id) {
+    const s = this.get(id); if (!s) return;
+    UI.confirm(`Padam murid "${s.name}" (${s.id})? Semua rekod kehadiran murid ini juga akan dipadam.`, () => {
+      Store.data.students = Store.data.students.filter(x => x.id !== id);
+      Object.keys(Store.data.attendance).forEach(d => {
+        delete Store.data.attendance[d][id];
+        if (!Object.keys(Store.data.attendance[d]).length) delete Store.data.attendance[d];
+      });
+      Log.add('Padam murid', `${s.id} - ${s.name}`);
+      Store.save();
+      if (this.editingId === id) this.resetForm();
+      this.refreshClassFilters();
+      this.render();
+      UI.toast('Murid dipadam.', 'warn');
+    });
+  },
+  // ---- Import Excel / CSV: baca tajuk, kesan lajur, tempatkan data dengan betul ----
+  _hdrKey(v) {
+    const t = String(v == null ? '' : v).toLowerCase().replace(/[^a-z0-9\/]/g, '');
+    if (!t) return '';
+    if (/(telefon|telpon|notel|tel$|phone|handphone|^hp|nohp|mobile)/.test(t)) return 'telefon';
+    if (/(penjaga|waris|guardian|parent|ibubapa|bapa|ibu$)/.test(t)) return 'penjaga';
+    if (/(jantina|jantin|gender|sex|^l\/p$|^lp$|^jan$)/.test(t)) return 'jantina';
+    if (/(kelas|class|darjah|tahun|tingkatan)/.test(t)) return 'kelas';
+    if (/(nama|name|murid|pelajar)/.test(t)) return 'name';
+    return '';
+  },
+  _cellText(v) {
+    if (v == null) return '';
+    if (v instanceof Date) return '';
+    return String(v).replace(/\s+/g, ' ').trim();
+  },
+  _fixPhone(v) {
+    let t = this._cellText(v);
+    if (!t) return '';
+    if (/^\d{9,10}$/.test(t) && t[0] !== '0') t = '0' + t;   // Excel buang sifar pendahuluan
+    return t;
+  },
+  // Kembalikan { map, start } atau null jika tiada baris tajuk
+  _findHeader(rows) {
+    for (let i = 0; i < Math.min(rows.length, 20); i++) {
+      const map = {};
+      (rows[i] || []).forEach((c, idx) => { const k = this._hdrKey(c); if (k && map[k] == null) map[k] = idx; });
+      const filled = (rows[i] || []).filter(c => this._cellText(c) !== '').length;
+      if (map.name != null && (Object.keys(map).length >= 2 || filled <= 2) && filled >= 1 && !(filled === 1 && String(rows[i][0]).trim().split(/\s+/).length > 3)) return { map, start: i + 1 };
+    }
+    return null;
+  },
+  // Tiada tajuk: teka lajur berdasarkan isi data
+  _guessColumns(rows) {
+    const width = Math.max(...rows.slice(0, 50).map(r => r.length), 0);
+    const sample = rows.slice(0, 50);
+    const col = i => sample.map(r => this._cellText(r[i])).filter(Boolean);
+    const map = {}; const used = new Set();
+    for (let i = 0; i < width; i++) {       // lajur jantina: hampir semua nilai L/P/Lelaki/Perempuan
+      const v = col(i); if (v.length < 2) continue;
+      if (v.filter(x => normalizeJantina(x) && x.length <= 10).length / v.length >= 0.9) { map.jantina = i; used.add(i); break; }
+    }
+    for (let i = 0; i < width; i++) {       // buang lajur nombor sahaja (Bil)
+      const v = col(i); if (v.length && v.every(x => /^\d+\.?$/.test(x)) && !/^0\d{8,}/.test(v[0])) used.add(i);
+    }
+    const rest = []; for (let i = 0; i < width; i++) if (!used.has(i)) rest.push(i);
+    if (rest.length) map.name = rest[0];
+    if (rest.length > 1) map.kelas = rest[1];
+    if (rest.length > 2) map.penjaga = rest[2];
+    if (rest.length > 3) map.telefon = rest[3];
+    return { map, start: 0 };
+  },
+  // Terjemah satu helaian kepada senarai murid
+  _readSheet(rows, sheetName, multiSheet) {
+    rows = rows.map(r => (r || []).map(c => (c == null ? '' : c))).filter(r => r.some(c => this._cellText(c) !== ''));
+    if (!rows.length) return { items: [], skipped: 0, note: '' };
+    const hdr = this._findHeader(rows) || this._guessColumns(rows);
+    const { map, start } = hdr;
+    const sheetIsClass = multiSheet && !/^(sheet|lembaran|helaian|laporan|data)\s*\d*$/i.test(sheetName.trim());
+    if (map.name == null) return { items: [], skipped: 0, note: `Helaian "${sheetName}": lajur Nama tidak dijumpai.` };
+    if (map.kelas == null && !sheetIsClass) return { items: [], skipped: rows.length - start, note: `Helaian "${sheetName}": lajur Kelas tidak dijumpai (tambah lajur Kelas dalam Excel).` };
+    const items = []; let skipped = 0;
+    rows.slice(start).forEach(r => {
+      const name = this._cellText(r[map.name]);
+      const kelas = map.kelas != null ? this._cellText(r[map.kelas]) : sheetName.trim();
+      if (!name || !/[A-Za-z]/.test(name) || /^(jumlah|total|bil|no\.?|nama)$/i.test(name)) { if (name || kelas) skipped++; return; }
+      if (!kelas) { skipped++; return; }
+      const rawJ = map.jantina != null ? this._cellText(r[map.jantina]) : '';
+      items.push({
+        name, kelas,
+        jantina: normalizeJantina(rawJ),
+        penjaga: map.penjaga != null ? this._cellText(r[map.penjaga]) : '',
+        telefon: map.telefon != null ? this._fixPhone(r[map.telefon]) : ''
+      });
+    });
+    return { items, skipped, note: '', map };
+  },
+  importCSV(file) { this.importFile(file); },
+  importFile(file) {
+    const done = () => { $('#csvFile').value = ''; };
+    const isCsv = /\.csv$/i.test(file.name) || file.type === 'text/csv';
+    if (!isCsv && !window.XLSX) { UI.toast('Pustaka Excel gagal dimuatkan (perlukan internet). Cuba simpan fail sebagai CSV.', 'error', 5000); done(); return; }
+    const reader = new FileReader();
+    reader.onerror = () => { UI.toast('Gagal membaca fail.', 'error'); done(); };
+    reader.onload = () => {
+      let sheets = [];
+      try {
+        if (window.XLSX) {
+          const wb = isCsv
+            ? XLSX.read(new TextDecoder('utf-8').decode(reader.result).replace(/^\uFEFF/, ''), { type: 'string' })
+            : XLSX.read(reader.result, { type: 'array' });
+          sheets = wb.SheetNames.map(n => ({ name: n, rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: '', blankrows: false }) }));
+        } else {
+          sheets = [{ name: 'CSV', rows: parseCSV(new TextDecoder('utf-8').decode(reader.result)) }];
+        }
+      } catch (e) { UI.toast('Fail tidak dapat dibaca. Pastikan ia fail Excel (.xlsx/.xls) atau CSV yang sah.', 'error', 5000); done(); return; }
+
+      const multi = sheets.length > 1;
+      let all = [], skipped = 0; const notes = [];
+      sheets.forEach(sh => {
+        const r = this._readSheet(sh.rows, sh.name, multi);
+        all = all.concat(r.items); skipped += r.skipped; if (r.note) notes.push(r.note);
+      });
+      if (!all.length) { UI.toast(notes[0] || 'Tiada data murid dijumpai. Pastikan ada lajur Nama dan Kelas.', 'error', 6000); done(); return; }
+
+      // Asingkan baru / sedia ada
+      const fresh = []; let dupCount = 0, jFill = 0; const seen = new Set();
+      const plan = [];
+      all.forEach(it => {
+        const key = it.name.toLowerCase() + '|' + it.kelas.toLowerCase();
+        const ex = Store.data.students.find(s => s.name.toLowerCase() === it.name.toLowerCase() && s.kelas.toLowerCase() === it.kelas.toLowerCase());
+        if (seen.has(key)) { dupCount++; return; }
+        seen.add(key);
+        if (ex) { dupCount++; if (!ex.jantina && it.jantina) { plan.push({ ex, j: it.jantina }); jFill++; } return; }
+        fresh.push(it);
+      });
+      const L = fresh.filter(x => x.jantina === 'Lelaki').length, P = fresh.filter(x => x.jantina === 'Perempuan').length, X = fresh.length - L - P;
+      const kelasList = [...new Set(fresh.map(x => x.kelas))];
+      const eg = fresh.slice(0, 3).map(x => `${x.name} (${x.jantina || 'tiada jantina'}, ${x.kelas})`).join('; ');
+      const msg = `${fresh.length} murid baru akan ditambah: Lelaki ${L}, Perempuan ${P}${X ? `, jantina kosong ${X}` : ''}. Kelas: ${kelasList.slice(0, 8).join(', ')}${kelasList.length > 8 ? '…' : ''}.`
+        + (eg ? ` Contoh: ${eg}.` : '')
+        + (dupCount ? ` ${dupCount} baris sama sedia ada dilangkau${jFill ? ` (${jFill} dikemas kini jantina)` : ''}.` : '')
+        + (skipped ? ` ${skipped} baris tidak sah dilangkau.` : '')
+        + (notes.length ? ' ' + notes.join(' ') : '');
+      if (!fresh.length && !jFill) { UI.toast(msg || 'Tiada murid baru.', 'warn', 6000); done(); return; }
+
+      UI.confirm(msg, () => {
+        plan.forEach(p => { p.ex.jantina = p.j; });
+        fresh.forEach(it => Store.data.students.push({ id: this.genId(), name: it.name, jantina: it.jantina, kelas: it.kelas, penjaga: it.penjaga, telefon: it.telefon, created: new Date().toISOString() }));
+        Log.add('Import Excel murid', `${fresh.length} murid ditambah, ${dupCount + skipped} dilangkau`);
+        Store.save();
+        this.refreshClassFilters();
+        this.render();
+        UI.toast(`${fresh.length} murid diimport.`, 'ok', 4000);
+        done();
+      }, { title: 'Sahkan Import Excel', okLabel: 'Import', danger: false });
+    };
+    reader.readAsArrayBuffer(file);
+  },
+  template() {
+    const data = [
+      ['Nama', 'Jantina', 'Kelas', 'Nama Penjaga', 'No. Telefon Penjaga'],
+      ['Muhammad Contoh bin Ali', 'Lelaki', '1 Amanah', 'Ali bin Abu', '012-3456789'],
+      ['Nur Contoh binti Ahmad', 'Perempuan', '2 Bestari', 'Ahmad bin Omar', '013-9876543']
+    ];
+    if (window.XLSX) {
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      ws['!cols'] = [{ wch: 32 }, { wch: 12 }, { wch: 14 }, { wch: 24 }, { wch: 20 }];
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Murid');
+      XLSX.writeFile(wb, 'templat-murid.xlsx');
+    } else downloadCSV('templat-murid.csv', data);
+  }
+};
+
+/* ---------- 10. STATISTIK (fungsi kongsi) ---------- */
+const Stats = {
+  // Kumpul rekod dalam julat tarikh mengikut penapis kelas & carian
+  collect({ from, to, kelas, q } = {}) {
+    const students = Students.filter(q || '', kelas || '');
+    const map = new Map(students.map(s => [s.id, s]));
+    const records = [];
+    Object.keys(Store.data.attendance).forEach(d => {
+      if ((from && d < from) || (to && d > to)) return;
+      const day = Store.data.attendance[d];
+      Object.keys(day).forEach(id => {
+        const s = map.get(id);
+        if (s && STATUS[day[id].status]) records.push({ date: d, s, status: day[id].status, time: day[id].time || '', note: day[id].note || '', sebab: day[id].sebab || '' });
+      });
+    });
+    records.sort((a, b) => b.date.localeCompare(a.date) || a.s.name.localeCompare(b.s.name, 'ms'));
+    return { students, records };
+  },
+  counts(records) { const c = { hadir: 0, tidak: 0 }; records.forEach(r => c[r.status]++); return c; },
+  total(c) { return c.hadir + c.tidak; },
+  // Peratus kehadiran = Hadir / jumlah rekod
+  pct(c) { const t = this.total(c); return t ? Math.round(c.hadir / t * 100) : null; },
+  perStudent(students, records) {
+    return students.map(s => {
+      const c = { hadir: 0, tidak: 0 };
+      records.forEach(r => { if (r.s.id === s.id) c[r.status]++; });
+      return { s, ...c, total: this.total(c), pct: this.pct(c) };
+    });
+  },
+  monthRange(d = new Date()) {
+    return { from: dateStr(new Date(d.getFullYear(), d.getMonth(), 1)), to: dateStr(new Date(d.getFullYear(), d.getMonth() + 1, 0)) };
+  },
+  barColor(p) { return p === null ? 'bg-slate-400' : p >= 90 ? 'bg-emerald-500' : p >= 80 ? 'bg-amber-500' : 'bg-red-500'; }
+};
+
+/* ---------- 11. PAPAN PEMUKA ---------- */
+const Dash = {
+  // Tahap amaran: [hari, label, kelas lencana]
+  AMARAN_BERTURUT: [[31, 'AMARAN KERAS & TINDAKAN', 'bg-red-700 text-white'], [17, 'AMARAN TERAKHIR', 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'], [10, 'AMARAN 2', 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300'], [3, 'AMARAN 1', 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300']],
+  AMARAN_BERKALA: [[60, 'AMARAN KERAS & TINDAKAN', 'bg-red-700 text-white'], [40, 'AMARAN TERAKHIR', 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'], [20, 'AMARAN 2', 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300'], [10, 'AMARAN 1', 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300']],
+  _level(list, n) { for (let i = 0; i < list.length; i++) if (n >= list[i][0]) return { rank: list.length - i, label: list[i][1], cls: list[i][2], at: list[i][0] }; return null; },
+  _next(list, n) { const up = list.map(x => x[0]).sort((a, b) => a - b).find(d => d > n); return up == null ? null : up; },
+  // Murid kerap tidak hadir: berturut-turut (hari persekolahan bersambung) dan berkala (jumlah tahun semasa)
+  frequentAbsent() {
+    const att = Store.data.attendance;
+    const dates = Object.keys(att).sort();
+    const year = String(new Date().getFullYear());
+    const out = [];
+    Store.data.students.forEach(s => {
+      let streak = 0, total = 0, last = '';
+      dates.forEach(d => {
+        const r = att[d] && att[d][s.id];
+        if (!r || !STATUS[r.status]) return;                 // belum ditanda: tidak memutuskan / menambah
+        if (r.status === 'tidak') { streak++; last = d; if (d.slice(0, 4) === year) total++; }
+        else streak = 0;                                     // hadir memutuskan rentetan
+      });
+      const a = this._level(this.AMARAN_BERTURUT, streak), b = this._level(this.AMARAN_BERKALA, total);
+      if (!a && !b) return;
+      const best = (a && (!b || a.rank >= b.rank)) ? a : b;
+      out.push({ s, streak, total, last, best, byStreak: best === a });
+    });
+    return out.sort((x, y) => y.best.rank - x.best.rank || y.streak - x.streak || y.total - x.total);
+  },
+  // Jadual kehadiran hari ini mengikut kelas: lelaki / perempuan HADIR + jumlah tidak hadir
+  absentByClass(day) {
+    const rows = {};
+    Store.data.students.forEach(st => {
+      const k = (st.kelas || '-').trim() || '-';
+      if (!rows[k]) rows[k] = { jumlahMurid: 0, L: 0, P: 0, X: 0, H: 0, HL: 0, HP: 0, HX: 0 };
+      rows[k].jumlahMurid++;
+      const r = day[st.id];
+      if (r && r.status === 'hadir') {
+        rows[k].H++;
+        if (st.jantina === 'Lelaki') rows[k].HL++; else if (st.jantina === 'Perempuan') rows[k].HP++; else rows[k].HX++;
+      }
+      if (r && r.status === 'tidak') {
+        if (st.jantina === 'Lelaki') rows[k].L++;
+        else if (st.jantina === 'Perempuan') rows[k].P++;
+        else rows[k].X++;
+      }
+    });
+    const kelas = Object.keys(rows).sort((a, b) => a.localeCompare(b, 'ms', { numeric: true, sensitivity: 'base' }));
+    if (!kelas.length) return '';
+    const tot = { jumlahMurid: 0, L: 0, P: 0, X: 0, H: 0, HL: 0, HP: 0, HX: 0 };
+    kelas.forEach(k => { ['jumlahMurid', 'L', 'P', 'X', 'H', 'HL', 'HP', 'HX'].forEach(f => { tot[f] += rows[k][f]; }); });
+    const showX = tot.HX > 0;
+    const num = (n, cls) => `<td class="td text-center ${n ? 'font-extrabold ' + cls : 'text-slate-400'}">${n}</td>`;
+    const line = (label, r) => `
+      <tr>
+        <td class="td font-semibold">${esc(label)}</td>
+        <td class="td text-center text-slate-500">${r.jumlahMurid}</td>
+        ${num(r.HL, 'text-sky-700 dark:text-sky-300')}
+        ${num(r.HP, 'text-pink-700 dark:text-pink-300')}
+        ${showX ? num(r.HX, 'text-slate-600 dark:text-slate-300') : ''}
+        ${num(r.L + r.P + r.X, 'text-red-600 dark:text-red-400')}
+      </tr>`;
+    // Baris JUMLAH: jumlah murid, jumlah hadir (lelaki + perempuan), jumlah tidak hadir
+    const absent = tot.L + tot.P + tot.X;
+    const totalLine = `
+      <tr class="bg-slate-100 dark:bg-slate-800 font-bold">
+        <td class="td">JUMLAH</td>
+        <td class="td text-center"><div class="text-lg font-extrabold">${tot.jumlahMurid}</div><div class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">jumlah murid</div></td>
+        <td class="td text-center" colspan="${showX ? 3 : 2}"><div class="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">${tot.H}</div><div class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">jumlah hadir (${tot.HL} ♂ + ${tot.HP} ♀)</div></td>
+        <td class="td text-center"><div class="text-lg font-extrabold text-red-600 dark:text-red-400">${absent}</div><div class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">jumlah tidak hadir (${tot.L} ♂ + ${tot.P} ♀)</div></td>
+      </tr>`;
+    return `
+      <h4 class="font-bold text-sm mt-5 mb-2">📋 Kehadiran Hari Ini Mengikut Kelas</h4>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead><tr>
+            <th class="th">Kelas</th>
+            <th class="th text-center">Murid</th>
+            <th class="th text-center">♂ Lelaki Hadir</th>
+            <th class="th text-center">♀ Perempuan Hadir</th>
+            ${showX ? '<th class="th text-center">Tiada Jantina Hadir</th>' : ''}
+            <th class="th text-center">Jumlah Tidak Hadir</th>
+          </tr></thead>
+          <tbody>
+            ${kelas.map(k => line(k, rows[k])).join('')}
+            ${totalLine}
+          </tbody>
+        </table>
+      </div>`;
+  },
+  render() {
+    const now = new Date();
+    const today = dateStr(now);
+    const total = Store.data.students.length;
+    $('#dashSub').textContent = `${fmtLong(now)} • Selamat datang, ${Auth.user || ''}`;
+
+    // Hari ini
+    const day = Store.data.attendance[today] || {};
+    const ids = new Set(Store.data.students.map(s => s.id));
+    const tc = { hadir: 0, tidak: 0 };
+    Object.keys(day).forEach(id => { if (ids.has(id) && tc[day[id].status] !== undefined) tc[day[id].status]++; });
+    const marked = Stats.total(tc);
+
+    // Bulan ini
+    const mr = Stats.monthRange(now);
+    const { students, records } = Stats.collect(mr);
+    const mc = Stats.counts(records);
+    const mp = Stats.pct(mc);
+
+    const card = (icon, label, value, sub, tone) => `
+      <div class="stat-card fade-in">
+        <div class="flex items-center justify-between">
+          <div class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">${label}</div>
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl ${tone}">${icon}</div>
+        </div>
+        <div class="text-3xl font-extrabold mt-2">${value}</div>
+        <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${sub}</div>
+      </div>`;
+    $('#dashCards').innerHTML =
+      card('🧑‍🎓', 'Jumlah Murid', total, `${Store.data.students.filter(s => s.jantina === 'Lelaki').length} lelaki • ${Store.data.students.filter(s => s.jantina === 'Perempuan').length} perempuan • ${new Set(Store.data.students.map(s => s.kelas)).size} kelas`, 'bg-blue-100 dark:bg-blue-900/40') +
+      card('✅', 'Hadir Hari Ini', tc.hadir, `${tc.tidak} tidak hadir`, 'bg-emerald-100 dark:bg-emerald-900/40') +
+      card('📅', 'Kehadiran Bulan Ini', mp === null ? '-' : mp + '%', `${BULAN[now.getMonth()]} ${now.getFullYear()}`, 'bg-sky-100 dark:bg-sky-900/40') +
+      card('⏳', 'Belum Ditanda', Math.max(0, total - marked), 'untuk hari ini', 'bg-amber-100 dark:bg-amber-900/40');
+
+    // Bar status hari ini
+    const seg = k => total ? (tc[k] / total * 100) : 0;
+    const unmarkedPct = total ? Math.max(0, (total - marked) / total * 100) : 100;
+    $('#dashToday').innerHTML = `
+      <div class="flex h-6 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-700">
+        ${STATUS_KEYS.map(k => `<div style="width:${seg(k)}%;background:${STATUS[k].hex}" class="transition-all" title="${STATUS[k].label}: ${tc[k]}"></div>`).join('')}
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4 text-sm">
+        ${STATUS_KEYS.map(k => `<div class="flex items-center gap-2"><i class="w-3 h-3 rounded-full inline-block" style="background:${STATUS[k].hex}"></i><span>${STATUS[k].label}: <b>${tc[k]}</b></span></div>`).join('')}
+        <div class="flex items-center gap-2"><i class="w-3 h-3 rounded-full inline-block bg-slate-300 dark:bg-slate-600"></i><span>Belum: <b>${Math.max(0, total - marked)}</b></span></div>
+      </div>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-3">${unmarkedPct === 0 ? 'Semua murid telah ditanda untuk hari ini. 🎉' : `${marked} daripada ${total} murid telah ditanda.`}</p>
+      ${this.absentByClass(day)}`;
+
+    // Murid kerap tidak hadir
+    const fa = this.frequentAbsent();
+    $('#dashAttn').innerHTML = fa.length ? fa.map(x => {
+      const ns = this._next(this.AMARAN_BERTURUT, x.streak), nb = this._next(this.AMARAN_BERKALA, x.total);
+      return `
+      <div class="p-2.5 rounded-xl bg-red-50 dark:bg-red-900/20">
+        <div class="flex items-center gap-3">
+          ${avatar(x.s.name, 'w-9 h-9 text-xs', x.s.foto)}
+          <div class="min-w-0 flex-1"><div class="text-sm font-semibold truncate">${esc(x.s.name)}</div><div class="text-xs text-slate-500">${esc(x.s.kelas)}${x.last ? ' • tidak hadir terakhir ' + esc(fmtShort(x.last)) : ''}</div></div>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold whitespace-nowrap ${x.best.cls}">${x.best.label}</span>
+        </div>
+        <div class="mt-1.5 text-xs text-slate-600 dark:text-slate-300 flex flex-wrap gap-x-4 gap-y-0.5">
+          <span>Berturut-turut: <b>${x.streak}</b> hari${ns ? ` <span class="text-slate-400">(seterusnya hari ke-${ns})</span>` : ''}</span>
+          <span>Berkala: <b>${x.total}</b> hari${nb ? ` <span class="text-slate-400">(seterusnya hari ke-${nb})</span>` : ''}</span>
+        </div>
+      </div>`;
+    }).join('') : '<p class="text-sm text-slate-500">Tiada murid mencapai had amaran. 👍</p>';
+
+    // Log terkini
+    Log.load();
+    const recent = Log.list.slice(-6).reverse();
+    $('#dashLog').innerHTML = recent.length ? recent.map(l => `
+      <div class="py-2 flex items-start gap-3 text-sm">
+        <div class="text-xs font-mono text-slate-500 w-36 shrink-0">${fmtStamp(l.t)}</div>
+        <div class="min-w-0"><b>${esc(l.user)}</b> • ${esc(l.action)} <span class="text-slate-500">${esc(l.detail)}</span></div>
+      </div>`).join('') : '<p class="text-sm text-slate-500 py-2">Tiada aktiviti.</p>';
+  }
+};
+
+/* ---------- 12. REKOD KEHADIRAN ---------- */
+const Att = {
+  date: dateStr(),
+  selId: null,
+  cal: { y: new Date().getFullYear(), m: new Date().getMonth() },
+  visible: [],
+
+  dayRec() { return Store.data.attendance[this.date] || {}; },
+
+  render() {
+    const d = parseDate(this.date);
+    $('#attDateLabel').textContent = fmtLong(d) + (this.date === dateStr() ? ' (Hari Ini)' : (this.date > dateStr() ? ' (Akan Datang)' : ''));
+    this.renderCalendar();
+    this.renderSummary();
+    this.renderList();
+  },
+
+  setDate(s) {
+    this.date = s;
+    const d = parseDate(s);
+    this.cal = { y: d.getFullYear(), m: d.getMonth() };
+    this.render();
+  },
+
+  // --- Kalendar interaktif ---
+  renderCalendar() {
+    const { y, m } = this.cal;
+    $('#calTitle').textContent = `${BULAN[m]} ${y}`;
+    const startDow = new Date(y, m, 1).getDay();
+    const days = new Date(y, m + 1, 0).getDate();
+    const total = Store.data.students.length;
+    const ids = new Set(Store.data.students.map(s => s.id));
+    const today = dateStr();
+    let html = '';
+    for (let i = 0; i < startDow; i++) html += '<div></div>';
+    for (let d = 1; d <= days; d++) {
+      const ds = `${y}-${pad(m + 1)}-${pad(d)}`;
+      const rec = Store.data.attendance[ds];
+      const cnt = rec ? Object.keys(rec).filter(id => ids.has(id)).length : 0;
+      const dow = new Date(y, m, d).getDay();
+      const sel = ds === this.date, isToday = ds === today, weekend = dow === 0 || dow === 6;
+      const dot = cnt > 0 ? `<i class="block w-1.5 h-1.5 rounded-full mx-auto mt-0.5 ${cnt >= total && total > 0 ? 'bg-emerald-500' : 'bg-amber-400'}"></i>` : '<i class="block w-1.5 h-1.5 mt-0.5"></i>';
+      html += `<button data-cal="${ds}" class="aspect-square rounded-lg text-sm font-semibold flex flex-col items-center justify-center transition
+        ${sel ? 'bg-blue-600 text-white shadow-md scale-105' : 'hover:bg-slate-100 dark:hover:bg-slate-700'}
+        ${!sel && weekend ? 'text-slate-400 dark:text-slate-500' : ''}
+        ${isToday && !sel ? 'ring-2 ring-emerald-500' : ''}">${d}${dot}</button>`;
+    }
+    $('#calGrid').innerHTML = html;
+  },
+
+  // --- Ringkasan hari ---
+  renderSummary() {
+    const day = this.dayRec();
+    const total = Store.data.students.length;
+    const ids = new Set(Store.data.students.map(s => s.id));
+    const c = { hadir: 0, tidak: 0 };
+    Object.keys(day).forEach(id => { if (ids.has(id) && c[day[id].status] !== undefined) c[day[id].status]++; });
+    const marked = Stats.total(c);
+    const hadirPct = total ? Math.round(c.hadir / total * 100) : 0;
+    const noReason = Object.keys(day).filter(id => ids.has(id) && day[id].status === 'tidak' && !day[id].sebab).length;
+    $('#attSummary').innerHTML = STATUS_KEYS.map(k => `
+      <div class="flex items-center justify-between text-sm">
+        <span class="flex items-center gap-2"><i class="w-3 h-3 rounded-full inline-block" style="background:${STATUS[k].hex}"></i>${STATUS[k].label}</span><b>${c[k]}</b>
+      </div>`).join('') + `
+      <div class="flex items-center justify-between text-sm"><span class="flex items-center gap-2"><i class="w-3 h-3 rounded-full inline-block bg-slate-300 dark:bg-slate-600"></i>Belum ditanda</span><b>${Math.max(0, total - marked)}</b></div>
+      ${noReason ? `<div class="text-xs font-semibold text-red-600 dark:text-red-400">⚠ ${noReason} murid tidak hadir belum dipilih sebab</div>` : ''}
+      <div class="pt-2">
+        <div class="flex justify-between text-xs text-slate-500 mb-1"><span>Kehadiran hari ini</span><span>${hadirPct}%</span></div>
+        <div class="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden"><div class="h-full bg-emerald-500 transition-all" style="width:${hadirPct}%"></div></div>
+      </div>`;
+  },
+
+  // --- Senarai murid (satu baris = satu murid) ---
+  // Adakah pengguna sedang menaip dalam petak sebab LAIN-LAIN?
+  typing() { const a = document.activeElement; return !!(a && a.dataset && a.dataset.sebabnote !== undefined); },
+
+  renderList() {
+    if (this.typing()) return;   // elak petak hilang fokus / teks terpadam semasa menaip
+    const list = Students.filter($('#attSearch').value, $('#attKelas').value);
+    this.visible = list.map(s => s.id);
+    if (this.selId && !this.visible.includes(this.selId)) this.selId = null;
+    const day = this.dayRec();
+
+    if (!list.length) {
+      $('#attList').innerHTML = `<div class="card p-8 text-center text-slate-500">${Store.data.students.length ? 'Tiada murid sepadan dengan carian.' : 'Belum ada murid. Daftar murid di menu "Daftar Murid" dahulu.'}</div>`;
+      return;
+    }
+    $('#attList').innerHTML = list.map(s => {
+      const r = day[s.id];
+      const sel = s.id === this.selId;
+      const info = r
+        ? `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${STATUS[r.status].badge}">${STATUS[r.status].label}</span>
+           <span class="text-[11px] font-mono text-slate-500 dark:text-slate-400">⏱ ${esc(r.time)}</span>
+           ${r.status === 'hadir' && r.note ? `<span class="text-[11px] text-slate-600 dark:text-slate-300 truncate max-w-[200px]" title="${esc(r.note)}">📝 ${esc(r.note)}</span>` : ''}`
+        : `<span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300">Belum ditanda</span>`;
+      // Dropdown sebab (muncul bila Tidak Hadir) + petak teks bila LAIN-LAIN
+      const reasonUI = (r && r.status === 'tidak') ? `
+        <div class="w-full flex flex-col sm:flex-row gap-2 mt-1">
+          <select data-sebab="${esc(s.id)}" aria-label="Sebab tidak hadir" class="input !py-1.5 text-xs sm:max-w-[270px] ${r.sebab ? '' : '!border-red-400 ring-1 ring-red-300'}">
+            <option value="">-- Pilih sebab tidak hadir --</option>
+            ${SEBAB.map(x => `<option value="${esc(x)}" ${r.sebab === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}
+          </select>
+          ${r.sebab === 'LAIN-LAIN' ? `<input data-sebabnote="${esc(s.id)}" type="text" maxlength="150" autocomplete="off" autocapitalize="sentences" spellcheck="false" enterkeyhint="done" aria-label="Sebab lain-lain" class="input !py-2 text-sm flex-1 min-w-[200px] ${r.note ? '' : '!border-red-400 ring-1 ring-red-300'}" placeholder="✏️ Taip sebab lain-lain di sini..." value="${esc(r.note || '')}">` : ''}
+        </div>` : '';
+      const btns = STATUS_KEYS.map(k => `
+        <button data-status="${k}" data-id="${esc(s.id)}" title="${STATUS[k].label} (${STATUS[k].key})"
+          class="px-3 py-2.5 rounded-xl border-2 text-xs sm:text-sm font-bold leading-tight transition active:scale-95 ${r && r.status === k ? STATUS[k].on : STATUS[k].off}">
+          ${STATUS[k].label}</button>`).join('');
+      return `
+        <div data-row="${esc(s.id)}" class="card p-3 flex flex-col xl:flex-row xl:items-center gap-3 cursor-pointer transition hover:shadow-md fade-in ${sel ? 'ring-2 ring-blue-500' : ''}">
+          <div class="flex items-center gap-3 min-w-0 xl:w-72">
+            ${avatar(s.name, undefined, s.foto)}
+            <div class="min-w-0">
+              <div class="font-semibold truncate">${esc(s.name)}</div>
+              <div class="text-xs text-slate-500 dark:text-slate-400"><span class="font-mono">${esc(s.id)}</span> • ${esc(s.kelas)}</div>
+            </div>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 xl:flex-1 min-w-0">${info}${reasonUI}</div>
+          <div class="flex items-center gap-2">
+            <div class="grid grid-cols-2 gap-2 flex-1 xl:w-64 xl:flex-none">${btns}</div>
+            ${r && r.status === 'hadir' ? `<button data-act="note" data-id="${esc(s.id)}" title="Nota / catatan (N)" class="w-10 h-10 shrink-0 rounded-xl border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 ${r.note ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''}">📝</button>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+  },
+
+  selectRow(id, scroll) {
+    this.selId = id;
+    $$('[data-row]').forEach(el => el.classList.toggle('ring-2', el.dataset.row === id));
+    $$('[data-row]').forEach(el => el.classList.toggle('ring-blue-500', el.dataset.row === id));
+    if (scroll) { const el = $(`[data-row="${CSS.escape(id)}"]`); if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  },
+
+  // --- Tandakan status (klik status sama = batalkan) ---
+  mark(id, status, opts = {}) {
+    const s = Students.get(id); if (!s) return;
+    const att = Store.data.attendance;
+    if (!att[this.date]) att[this.date] = {};
+    const day = att[this.date];
+    const cur = day[id];
+    if (cur && cur.status === status) {
+      delete day[id];
+      if (!Object.keys(day).length) delete att[this.date];
+      Log.add('Batal tanda kehadiran', `${s.name} (${s.id}) • ${fmtShort(this.date)}`);
+      UI.toast(`${shortName(s.name)}: status dikosongkan`, 'info', 1800);
+    } else {
+      const time = nowTime();                         // masa check-in automatik
+      day[id] = status === 'tidak' ? { status, time, sebab: '', note: '' } : { status, time, note: '' };
+      Log.add('Tanda kehadiran', `${s.name} (${s.id}) → ${STATUS[status].label} • ${fmtShort(this.date)} ${time}`);
+      UI.toast(status === 'tidak' ? `${shortName(s.name)}: Tidak Hadir - sila pilih sebab` : `${shortName(s.name)}: ${STATUS[status].label} (${time})`, status === 'tidak' ? 'warn' : 'ok', status === 'tidak' ? 2600 : 1800);
+    }
+    Store.save();
+    if (opts.advance) {
+      const i = this.visible.indexOf(id);
+      if (i >= 0 && i < this.visible.length - 1) this.selId = this.visible[i + 1];
+    }
+    this.renderSummary(); this.renderCalendar(); this.renderList();
+    if (opts.advance && this.selId) this.selectRow(this.selId, true);
+  },
+
+  // --- Sebab tidak hadir (dropdown) ---
+  setSebab(id, val) {
+    const r = this.dayRec()[id];
+    if (!r || r.status !== 'tidak') return;
+    const s = Students.get(id);
+    r.sebab = val;
+    if (val !== 'LAIN-LAIN') r.note = '';
+    Log.add('Sebab tidak hadir', `${s ? s.name : id} (${id}) • ${fmtShort(this.date)}: ${val || '(belum dipilih)'}`);
+    Store.save();
+    this.renderSummary();
+    this.renderList();
+    if (val === 'LAIN-LAIN') { const i = $(`[data-sebabnote="${CSS.escape(id)}"]`); if (i) i.focus(); }
+    else if (val) UI.toast('Sebab disimpan.', 'ok', 1500);
+  },
+  // Petak teks LAIN-LAIN: simpan semasa menaip (tertunda), log apabila selesai
+  _noteTimer: null,
+  setSebabNote(id, text, commit) {
+    const r = this.dayRec()[id];
+    if (!r || r.status !== 'tidak' || r.sebab !== 'LAIN-LAIN') return;
+    r.note = text.trim().slice(0, 150);
+    clearTimeout(this._noteTimer);
+    if (commit) {
+      const s = Students.get(id);
+      Log.add('Sebab tidak hadir', `${s ? s.name : id} (${id}) • ${fmtShort(this.date)}: LAIN-LAIN - ${r.note || '(kosong)'}`);
+      Store.save();
+      UI.toast('Sebab lain-lain disimpan.', 'ok', 1500);
+    } else {
+      this._noteTimer = setTimeout(() => Store.save(), 400);
+    }
+  },
+
+  clearOne(id) {
+    const day = Store.data.attendance[this.date];
+    if (!day || !day[id]) return;
+    const s = Students.get(id);
+    delete day[id];
+    if (!Object.keys(day).length) delete Store.data.attendance[this.date];
+    Log.add('Kosongkan status', `${s ? s.name : id} • ${fmtShort(this.date)}`);
+    Store.save();
+    this.renderSummary(); this.renderCalendar(); this.renderList();
+  },
+
+  // --- Tindakan pukal ---
+  markAll() {
+    const day = this.dayRec();
+    const targets = this.visible.filter(id => !day[id]);
+    if (!targets.length) { UI.toast('Semua murid yang dipaparkan sudah ditanda.', 'warn'); return; }
+    UI.confirm(`Tandakan ${targets.length} murid (yang belum ditanda) sebagai HADIR pada ${fmtShort(this.date)}?`, () => {
+      if (!Store.data.attendance[this.date]) Store.data.attendance[this.date] = {};
+      const t = nowTime();
+      targets.forEach(id => { Store.data.attendance[this.date][id] = { status: 'hadir', time: t, note: '' }; });
+      Log.add('Tandakan semua hadir', `${targets.length} murid • ${fmtShort(this.date)}`);
+      Store.save();
+      this.render();
+      UI.toast(`${targets.length} murid ditandakan Hadir.`);
+    }, { title: 'Tandakan Semua Hadir', okLabel: 'Ya, Tandakan', danger: false });
+  },
+
+  resetDay() {
+    if (!Store.data.attendance[this.date]) { UI.toast('Tiada rekod untuk tarikh ini.', 'warn'); return; }
+    UI.confirm(`Reset (kosongkan) SEMUA rekod kehadiran pada ${fmtLong(parseDate(this.date))}?`, () => {
+      delete Store.data.attendance[this.date];
+      Log.add('Reset hari', `Rekod ${fmtShort(this.date)} dikosongkan`);
+      Store.save();
+      this.render();
+      UI.toast('Rekod hari ini telah di-reset.', 'warn');
+    }, { title: 'Reset Hari', okLabel: 'Reset' });
+  },
+
+  // --- Nota / catatan ---
+  openNote(id) {
+    const s = Students.get(id); if (!s) return;
+    const r = this.dayRec()[id];
+    if (!r) { UI.toast('Tandakan status murid dahulu sebelum menulis nota.', 'warn'); return; }
+    if (r.status !== 'hadir') { UI.toast('Nota hanya untuk murid Hadir. Untuk Tidak Hadir, pilih sebab di dropdown.', 'warn', 3500); return; }
+    const chips = ['Lewat: bas lewat', 'Lewat: hujan lebat', 'Lewat: kesesakan jalan', 'Pulang awal', 'Temujanji klinik'];
+    UI.modal({
+      title: `Nota: ${shortName(s.name)}`,
+      body: `
+        <p class="text-xs text-slate-500 mb-2">${esc(fmtShort(this.date))} • ${esc(STATUS[r.status].label)} • ${esc(r.time)}</p>
+        <textarea id="noteText" rows="3" maxlength="200" class="input" placeholder="cth: Lewat kerana bas rosak (murid tetap Hadir)">${esc(r.note || '')}</textarea>
+        <div class="flex flex-wrap gap-1.5 mt-2">${chips.map(c => `<button type="button" data-chip="${esc(c)}" class="px-2 py-1 rounded-full text-xs border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">${esc(c)}</button>`).join('')}</div>`,
+      buttons: [
+        { label: 'Batal', cls: 'btn-ghost' },
+        { label: 'Simpan Nota', cls: 'btn-primary', onClick: () => {
+          const v = $('#noteText').value.trim();
+          const rec = this.dayRec()[id];
+          if (rec) { rec.note = v; Log.add('Nota kehadiran', `${s.name} (${s.id}) • ${fmtShort(this.date)}: ${v || '(kosong)'}`); Store.save(); this.renderList(); UI.toast('Nota disimpan.'); }
+        } }
+      ],
+      onMount: el => {
+        $$('[data-chip]', el).forEach(b => b.addEventListener('click', () => { $('#noteText').value = b.dataset.chip; $('#noteText').focus(); }));
+        setTimeout(() => $('#noteText') && $('#noteText').focus(), 50);
+      }
+    });
+  },
+
+  // --- Imbas kod QR / ID ---
+  scan(code) {
+    code = String(code || '').trim();
+    if (!code) return;
+    const id = (code.includes('|') ? code.split('|').pop() : code).trim().toUpperCase();
+    const s = Students.get(id);
+    if (!s) { UI.toast(`ID "${id}" tidak dijumpai.`, 'error'); return; }
+    const day = this.dayRec();
+    if (day[id]) { UI.toast(`${shortName(s.name)} sudah direkod: ${STATUS[day[id].status].label} (${day[id].time})`, 'warn', 3500); return; }
+    const time = nowTime();
+    const late = this.date === dateStr() && time.slice(0, 5) > (Store.data.settings.waktuMasuk || '07:30');
+    const status = 'hadir';   // sentiasa Hadir; lewat dicatat dalam nota
+    if (!Store.data.attendance[this.date]) Store.data.attendance[this.date] = {};
+    Store.data.attendance[this.date][id] = { status, time, note: late ? 'Lewat (imbas QR)' : '' };
+    Log.add('Imbas QR', `${s.name} (${s.id}) → ${STATUS[status].label}${late ? ' (Lewat)' : ''} ${time}`);
+    Store.save();
+    this.selId = id;
+    this.render();
+    UI.toast(`✔ ${shortName(s.name)} - ${STATUS[status].label}${late ? ' (Lewat)' : ''} (${time})`, late ? 'warn' : 'ok', 3000);
+  },
+
+  async openCamera() {
+    if (!('BarcodeDetector' in window) || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      UI.toast('Pelayar ini tidak menyokong imbasan kamera. Gunakan pengimbas USB atau taip ID.', 'warn', 5000);
+      return;
+    }
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); }
+    catch (e) { UI.toast('Tidak dapat mengakses kamera (kebenaran ditolak).', 'error'); return; }
+    let running = true, last = { code: '', t: 0 };
+    UI.modal({
+      title: '📷 Imbas Kod QR',
+      body: '<video id="camVideo" playsinline muted class="w-full rounded-xl bg-black aspect-video"></video><p class="text-xs text-slate-500 mt-2">Halakan kamera ke kod QR murid. Imbasan berterusan sehingga anda tutup.</p>',
+      buttons: [{ label: 'Tutup Kamera', cls: 'btn-primary' }],
+      onClose: () => { running = false; stream.getTracks().forEach(t => t.stop()); }
+    });
+    const video = $('#camVideo');
+    video.srcObject = stream;
+    try { await video.play(); } catch (e) { /* abaikan */ }
+    const det = new BarcodeDetector({ formats: ['qr_code'] });
+    const loop = async () => {
+      if (!running) return;
+      try {
+        const codes = await det.detect(video);
+        if (codes.length) {
+          const code = codes[0].rawValue;
+          if (code !== last.code || Date.now() - last.t > 3000) { last = { code, t: Date.now() }; this.scan(code); }
+        }
+      } catch (e) { /* abaikan */ }
+      setTimeout(loop, 350);
+    };
+    loop();
+  },
+
+  // --- Pintasan papan kekunci ---
+  onKey(e) {
+    if (Router.cur !== 'kehadiran' || !Auth.user || UI.hasModal() || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target;
+    if (t && (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.isContentEditable)) return;
+    const k = e.key.toLowerCase();
+    const map = { h: 'hadir', t: 'tidak' };
+    if (map[k]) {
+      e.preventDefault();
+      if (!this.selId) this.selId = this.visible[0] || null;
+      if (this.selId) this.mark(this.selId, map[k], { advance: true });
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!this.visible.length) return;
+      let i = this.visible.indexOf(this.selId);
+      i = i < 0 ? 0 : Math.max(0, Math.min(this.visible.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)));
+      this.selectRow(this.visible[i], true);
+    } else if (k === 'n') {
+      if (this.selId) { e.preventDefault(); this.openNote(this.selId); }
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (this.selId) { e.preventDefault(); this.clearOne(this.selId); }
+    }
+  }
+};
+
+/* ---------- 14. LAPORAN ---------- */
+const Rep = {
+  inited: false,
+  charts: { bar: null, pie: null },
+
+  init() {
+    if (this.inited) return;
+    this.inited = true;
+    const t = new Date();
+    $('#repMonth').value = `${t.getFullYear()}-${pad(t.getMonth() + 1)}`;
+    this.setMonth($('#repMonth').value);
+  },
+  setMonth(v) {
+    if (!v) return;
+    const [y, m] = v.split('-').map(Number);
+    $('#repFrom').value = `${y}-${pad(m)}-01`;
+    $('#repTo').value = dateStr(new Date(y, m, 0));
+  },
+  query() {
+    let from = $('#repFrom').value, to = $('#repTo').value;
+    if (from && to && from > to) { const x = from; from = to; to = x; }
+    return { from, to, kelas: $('#repKelas').value, q: $('#repSearch').value };
+  },
+  filteredRecords() {
+    const { students, records } = Stats.collect(this.query());
+    const st = $('#repStatus').value;
+    return { students, records, shown: st ? records.filter(r => r.status === st) : records };
+  },
+
+  render() {
+    this.init();
+    const { students, records, shown } = this.filteredRecords();
+    const c = Stats.counts(records);
+    const pct = Stats.pct(c);
+
+    // Kad ringkasan
+    const tone = { hadir: 'border-l-emerald-500', tidak: 'border-l-red-500' };
+    $('#repCards').innerHTML = STATUS_KEYS.map(k => `
+      <div class="card p-4 border-l-4 ${tone[k]} fade-in">
+        <div class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">${STATUS[k].label}</div>
+        <div class="text-3xl font-extrabold">${c[k]}</div>
+      </div>`).join('') + `
+      <div class="card p-4 border-l-4 border-l-sky-500 fade-in col-span-2 lg:col-span-1">
+        <div class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Peratus Kehadiran</div>
+        <div class="text-3xl font-extrabold">${pct === null ? '-' : pct + '%'}</div>
+      </div>`;
+
+    // Pecahan sebab tidak hadir
+    const rc = {}; SEBAB.forEach(x => { rc[x] = 0; }); let noS = 0;
+    records.forEach(r => { if (r.status === 'tidak') { if (r.sebab && rc[r.sebab] !== undefined) rc[r.sebab]++; else noS++; } });
+    const box = (t, n, cls = '') => `<div class="rounded-xl bg-slate-50 dark:bg-slate-700/50 p-3"><div class="text-[11px] font-bold text-slate-500 dark:text-slate-400 ${cls}">${esc(t)}</div><div class="text-2xl font-extrabold">${n}</div></div>`;
+    $('#repReasons').innerHTML = `<h3 class="font-bold mb-2">📋 Sebab Tidak Hadir</h3><div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">${SEBAB.map(x => box(x, rc[x])).join('')}${box('BELUM DIPILIH', noS)}</div>`;
+
+    this.renderGender(records, students);
+    this.drawCharts(records, c);
+
+    // Peratus setiap murid
+    const stats = Stats.perStudent(students, records);
+    $('#repStudents').innerHTML = stats.length ? stats.map(x => `
+      <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/40">
+        <td class="td"><div class="flex items-center gap-2">${avatar(x.s.name, 'w-8 h-8 text-xs', x.s.foto)}<div><div class="font-semibold">${esc(x.s.name)}</div><div class="text-xs font-mono text-slate-500">${esc(x.s.id)}</div></div></div></td>
+        <td class="td whitespace-nowrap">${esc(x.s.kelas)}</td>
+        <td class="td text-center">${x.hadir}</td><td class="td text-center">${x.tidak}</td>
+        <td class="td"><div class="flex items-center gap-2">
+          <div class="flex-1 h-2.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden"><div class="h-full ${Stats.barColor(x.pct)} transition-all" style="width:${x.pct ?? 0}%"></div></div>
+          <span class="text-xs font-bold w-10 text-right">${x.pct === null ? '-' : x.pct + '%'}</span></div></td>
+      </tr>`).join('') : '<tr><td colspan="5" class="td text-center text-slate-500 py-8">Tiada murid.</td></tr>';
+
+    // Jadual rekod (had 500 baris dipaparkan)
+    const LIMIT = 500;
+    $('#repRecCount').textContent = `(${shown.length} rekod${shown.length > LIMIT ? `, dipaparkan ${LIMIT} teratas - eksport untuk semua` : ''})`;
+    $('#repRecords').innerHTML = shown.length ? shown.slice(0, LIMIT).map(r => `
+      <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/40">
+        <td class="td whitespace-nowrap">${fmtShort(r.date)}</td>
+        <td class="td"><div class="font-medium">${esc(r.s.name)}</div><div class="text-xs font-mono text-slate-500">${esc(r.s.id)}</div></td>
+        <td class="td whitespace-nowrap">${esc(r.s.kelas)}</td>
+        <td class="td"><span class="px-2 py-0.5 rounded-full text-xs font-bold ${STATUS[r.status].badge}">${STATUS[r.status].label}</span></td>
+        <td class="td font-mono">${esc(r.time)}</td>
+        <td class="td text-slate-600 dark:text-slate-300">${esc(recReason(r))}</td>
+      </tr>`).join('') : '<tr><td colspan="6" class="td text-center text-slate-500 py-8">Tiada rekod dalam julat / penapis ini.</td></tr>';
+  },
+
+  // Graf: bar harian (bertindan) + pai status (Chart.js)
+  drawCharts(records, c) {
+    ['bar', 'pie'].forEach(k => { if (this.charts[k]) { this.charts[k].destroy(); this.charts[k] = null; } });
+    if (typeof Chart === 'undefined') { $('#chartMsg').classList.remove('hidden'); return; }
+    $('#chartMsg').classList.add('hidden');
+    const dark = document.documentElement.classList.contains('dark');
+    const tick = dark ? '#cbd5e1' : '#475569';
+    const grid = dark ? 'rgba(148,163,184,.15)' : 'rgba(100,116,139,.15)';
+
+    const byDate = {};
+    records.forEach(r => { (byDate[r.date] = byDate[r.date] || { hadir: 0, tidak: 0 })[r.status]++; });
+    const dates = Object.keys(byDate).sort();
+    this.charts.bar = new Chart($('#chBar'), {
+      type: 'bar',
+      data: {
+        labels: dates.map(d => d.slice(8) + '/' + d.slice(5, 7)),
+        datasets: STATUS_KEYS.map(k => ({ label: STATUS[k].label, data: dates.map(d => byDate[d][k]), backgroundColor: STATUS[k].hex, borderRadius: 3 }))
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { stacked: true, ticks: { color: tick }, grid: { display: false } },
+          y: { stacked: true, beginAtZero: true, ticks: { color: tick, precision: 0 }, grid: { color: grid } }
+        },
+        plugins: { legend: { labels: { color: tick } } }
+      }
+    });
+    this.charts.pie = new Chart($('#chPie'), {
+      type: 'pie',
+      data: { labels: STATUS_KEYS.map(k => STATUS[k].label), datasets: [{ data: STATUS_KEYS.map(k => c[k]), backgroundColor: STATUS_KEYS.map(k => STATUS[k].hex), borderColor: dark ? '#1e293b' : '#ffffff', borderWidth: 2 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: tick } } } }
+    });
+  },
+
+  // ---- Statistik harian mengikut jantina ----
+  genderData(records) {
+    const mk = () => ({ L: { hadir: 0, tidak: 0 }, P: { hadir: 0, tidak: 0 }, X: { hadir: 0, tidak: 0 } });
+    const byDate = {}, tot = mk();
+    records.forEach(r => {
+      const g = r.s.jantina === 'Lelaki' ? 'L' : r.s.jantina === 'Perempuan' ? 'P' : 'X';
+      (byDate[r.date] = byDate[r.date] || mk())[g][r.status]++;
+      tot[g][r.status]++;
+    });
+    return { rows: Object.keys(byDate).sort().map(d => ({ date: d, g: byDate[d] })), tot };
+  },
+  gAll(g) { return { hadir: g.L.hadir + g.P.hadir + g.X.hadir, tidak: g.L.tidak + g.P.tidak + g.X.tidak }; },
+  gPct(o) { const t = o.hadir + o.tidak; return t ? Math.round(o.hadir / t * 100) + '%' : '-'; },
+  // Baris sel: [Tarikh, L hadir, L tidak, L jumlah, P hadir, P tidak, P jumlah, hadir, tidak, jumlah, %]
+  genderCells(label, g) {
+    const a = this.gAll(g), sum = o => o.hadir + o.tidak;
+    return [label, g.L.hadir, g.L.tidak, sum(g.L), g.P.hadir, g.P.tidak, sum(g.P), a.hadir, a.tidak, sum(a), this.gPct(a)];
+  },
+  genderTable(gd) {
+    return {
+      head: ['Tarikh', 'Lelaki Hadir', 'Lelaki Tidak Hadir', 'Lelaki Jumlah', 'Perempuan Hadir', 'Perempuan Tidak Hadir', 'Perempuan Jumlah', 'Jumlah Hadir', 'Jumlah Tidak Hadir', 'Jumlah Rekod', '% Kehadiran'],
+      body: gd.rows.map(r => this.genderCells(`${HARI[parseDate(r.date).getDay()].slice(0, 3)} ${fmtShort(r.date)}`, r.g)),
+      foot: this.genderCells('JUMLAH', gd.tot)
+    };
+  },
+  renderGender(records, students) {
+    const gd = this.genderData(records), tb = this.genderTable(gd);
+    const nL = students.filter(x => x.jantina === 'Lelaki').length, nP = students.filter(x => x.jantina === 'Perempuan').length;
+    const card = (title, nStu, o, tone) => `
+      <div class="rounded-xl border border-slate-200 dark:border-slate-700 border-l-4 ${tone} p-4 bg-white dark:bg-slate-800">
+        <div class="flex items-baseline justify-between"><div class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">${title}</div><div class="text-xs text-slate-500">${nStu} murid</div></div>
+        <div class="text-3xl font-extrabold mt-1">${this.gPct(o)}<span class="text-xs font-semibold text-slate-500"> kehadiran</span></div>
+        <div class="grid grid-cols-3 gap-2 mt-2 text-center text-xs">
+          <div class="rounded-lg bg-emerald-50 dark:bg-emerald-900/30 py-1"><div class="font-bold text-emerald-700 dark:text-emerald-300 text-base">${o.hadir}</div>Hadir</div>
+          <div class="rounded-lg bg-red-50 dark:bg-red-900/30 py-1"><div class="font-bold text-red-700 dark:text-red-300 text-base">${o.tidak}</div>Tidak</div>
+          <div class="rounded-lg bg-slate-100 dark:bg-slate-700 py-1"><div class="font-bold text-base">${o.hadir + o.tidak}</div>Jumlah</div>
+        </div>
+      </div>`;
+    $('#repGenderCards').innerHTML =
+      card('♂ Lelaki', nL, gd.tot.L, 'border-l-sky-500') +
+      card('♀ Perempuan', nP, gd.tot.P, 'border-l-pink-500') +
+      card('Jumlah Keseluruhan', students.length, this.gAll(gd.tot), 'border-l-emerald-500');
+
+    const cell = (v, i) => {
+      const cls = i === 0 ? 'td text-left whitespace-nowrap font-medium'
+        : [2, 5, 8].includes(i) ? 'td text-red-600 dark:text-red-400'
+        : [1, 4, 7].includes(i) ? 'td text-emerald-700 dark:text-emerald-400'
+        : [3, 6, 9].includes(i) ? 'td font-bold' : 'td font-bold';
+      return `<td class="${cls}">${esc(v)}</td>`;
+    };
+    $('#repGenderBody').innerHTML = tb.body.length
+      ? tb.body.map(r => `<tr class="hover:bg-slate-50 dark:hover:bg-slate-700/40">${r.map(cell).join('')}</tr>`).join('')
+      : '<tr><td colspan="11" class="td text-slate-500 py-8">Tiada rekod dalam julat / penapis ini.</td></tr>';
+    $('#repGenderFoot').innerHTML = `<tr>${tb.foot.map(cell).join('')}</tr>`;
+    const x = gd.tot.X.hadir + gd.tot.X.tidak;
+    $('#repGenderNote').textContent = x ? `⚠ ${x} rekod murid yang jantinanya belum diisi dimasukkan dalam Jumlah Keseluruhan sahaja. Kemas kini di menu Daftar Murid.` : '';
+  },
+  exportGender() {
+    const { records } = this.filteredRecords();
+    const tb = this.genderTable(this.genderData(records));
+    if (!tb.body.length) { UI.toast('Tiada rekod untuk dieksport.', 'warn'); return; }
+    const plain = r => [r[0].replace(/^[A-Za-z]{3} /, ''), ...r.slice(1)];     // tarikh tanpa nama hari dalam CSV
+    downloadCSV(`statistik-jantina_${dateStr()}.csv`, [tb.head, ...tb.body.map(plain), tb.foot]);
+    Log.add('Eksport CSV', `Statistik harian jantina (${this.periodLabel()})`);
+    UI.toast('Fail CSV dimuat turun.');
+  },
+
+  periodLabel() { const q = this.query(); return `${fmtShort(q.from)} - ${fmtShort(q.to)}`; },
+
+  exportCSV() {
+    const { shown } = this.filteredRecords();
+    if (!shown.length) { UI.toast('Tiada rekod untuk dieksport.', 'warn'); return; }
+    const rows = [['Tarikh', 'ID', 'Nama', 'Jantina', 'Kelas', 'Nama Penjaga', 'Telefon Penjaga', 'Status', 'Masa', 'Sebab / Nota']];
+    shown.forEach(r => rows.push([r.date, r.s.id, r.s.name, r.s.jantina || '', r.s.kelas, r.s.penjaga, r.s.telefon, STATUS[r.status].label, r.time, recReason(r)]));
+    downloadCSV(`kehadiran-ppki-sktg_${dateStr()}.csv`, rows);
+    Log.add('Eksport CSV', `${shown.length} rekod (${this.periodLabel()})`);
+    UI.toast('Fail CSV dimuat turun.');
+  },
+
+  exportPDF() {
+    if (!window.jspdf) { UI.toast('Pustaka PDF gagal dimuatkan (perlukan internet).', 'error'); return; }
+    const { students, records, shown } = this.filteredRecords();
+    const doc = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    if (typeof doc.autoTable !== 'function') { UI.toast('Pemalam jadual PDF gagal dimuatkan.', 'error'); return; }
+    const c = Stats.counts(records), pct = Stats.pct(c);
+    doc.setFontSize(16); doc.text('LAPORAN KEHADIRAN PPKI SKTG', 14, 16);
+    if (Logo.get()) { try { const pr = doc.getImageProperties(Logo.get()); const hh = 16, ww = Math.min(40, hh * pr.width / pr.height); doc.addImage(Logo.get(), 'PNG', 196 - ww, 6, ww, hh); } catch (e) { /* abaikan logo */ } }
+    doc.setFontSize(10);
+    doc.text(`Tempoh: ${this.periodLabel()}   |   Dijana: ${fmtLong(new Date())}`, 14, 23);
+    doc.text(`Hadir: ${c.hadir}   Tidak Hadir: ${c.tidak}   Peratus kehadiran: ${pct === null ? '-' : pct + '%'}`, 14, 29);
+
+    const stats = Stats.perStudent(students, records);
+    doc.autoTable({
+      startY: 34,
+      head: [['Nama', 'Kelas', 'Hadir', 'Tidak Hadir', '% Kehadiran']],
+      body: stats.map(x => [x.s.name, x.s.kelas, x.hadir, x.tidak, x.pct === null ? '-' : x.pct + '%']),
+      styles: { fontSize: 8 }, headStyles: { fillColor: [29, 78, 216] }
+    });
+    const pages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pages; i++) {
+      doc.setPage(i); doc.setFontSize(8);
+      doc.text(`SISTEM PPKI SKTG © 2026  -  Halaman ${i}/${pages}`, 14, 290);
+    }
+    doc.save(`laporan-kehadiran-ppki-sktg_${dateStr()}.pdf`);
+    Log.add('Eksport PDF', `${this.periodLabel()}`);
+    UI.toast('Fail PDF dimuat turun.');
+  },
+
+  // Cetak laporan bulanan (menggunakan julat/penapis semasa)
+  print() {
+    const { students, records } = this.filteredRecords();
+    const c = Stats.counts(records), pct = Stats.pct(c);
+    const stats = Stats.perStudent(students, records);
+    const kelas = $('#repKelas').value;
+    $('#printArea').innerHTML = `
+      ${Logo.get() ? `<img src="${esc(Logo.get())}" alt="Logo" style="height:56px;float:right;margin-left:12px">` : ''}
+      <h1>LAPORAN KEHADIRAN PPKI SKTG</h1>
+      <p>Tempoh: <b>${esc(this.periodLabel())}</b> ${kelas ? '&nbsp;|&nbsp; Kelas: <b>' + esc(kelas) + '</b>' : ''}</p>
+      <p>Dijana pada: ${esc(fmtLong(new Date()))} oleh ${esc(Auth.user || '')}</p>
+      <h2>Ringkasan</h2>
+      <table><tr><th>Hadir</th><th>Tidak Hadir</th><th>Peratus Kehadiran</th></tr>
+      <tr><td>${c.hadir}</td><td>${c.tidak}</td><td>${pct === null ? '-' : pct + '%'}</td></tr></table>
+      <h2>Kehadiran Setiap Murid</h2>
+      <table><tr><th>Nama</th><th>Kelas</th><th>Hadir</th><th>Tidak Hadir</th><th>% Kehadiran</th></tr>
+      ${stats.map(x => `<tr><td>${esc(x.s.name)}</td><td>${esc(x.s.kelas)}</td><td>${x.hadir}</td><td>${x.tidak}</td><td>${x.pct === null ? '-' : x.pct + '%'}</td></tr>`).join('')}</table>
+      <p style="margin-top:24px">SISTEM PPKI SKTG &copy; 2026</p>`;
+    Log.add('Cetak laporan', this.periodLabel());
+    setTimeout(() => window.print(), 100);
+  }
+};
+
+/* ---------- PPM: SENARAI TUGAS HARIAN ---------- */
+const PPM_TUGAS = [
+  'Membuka kelas dan memastikan kelas dalam keadaan yang tersedia digunakan.',
+  'Mengiringi murid ke tapak perhimpunan dan memastikan murid berada di dalam kelas untuk sesi PDP.',
+  'Mengambil rekod kedatangan murid.',
+  'Membantu guru dalam aktiviti pdp dan penyediaan pembelajaran dan pengajaran guru.',
+  'Menguruskan pergerakan (mobility) untuk aktiviti murid khas ke tandas, padang dan aktiviti PDP.',
+  'Melindungi masa interaksional (MMI) / mengambil BBM daripada guru.',
+  'Mengiringi murid ke kantin dan menguruskan pembelian makanan serta wang saku murid.',
+  'Membantu murid untuk program RMT.',
+  'Mengiringi murid ke kelas dan memastikan murid bersedia untuk PDP selepas rehat.',
+  'Membantu guru di kelas PDP.',
+  'Mengemas peralatan yang digunakan selepas PDP.',
+  'Membantu murid beratur dan membaca doa sebelum balik.',
+  'Memastikan keselamatan murid semasa menunggu ibu, bapa dan penjaga pada waktu balik.',
+  'Membersih dan menyusun perabut di dalam kelas.',
+  'Menyapu dan mengemop semua kelas.',
+  'Membantu menyusun fail murid.',
+  'Membantu membuat inventori serta merekod pembelian bahan.'
+];
+const PPM_HARI = ['ISNIN', 'SELASA', 'RABU', 'KHAMIS', 'JUMAAT'];
+const PPM_ISNIN = d => { const x = parseDate(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };   // Isnin dalam minggu yang sama
+const PPM = {
+  date: dateStr(),
+  _t: null,
+  edit: false,
+  // Senarai tugas ikut hari (0=Isnin ... 4=Jumaat). Lalai = senarai asal; boleh diubah dan disimpan setiap hari.
+  tugas(date) {
+    const wd = parseDate(date).getDay(), k = wd >= 1 && wd <= 5 ? wd - 1 : 0;
+    const c = (Store.data.ppmTugas || {})[k];
+    return Array.isArray(c) && c.length ? c : PPM_TUGAS;
+  },
+  defaultRec(date) {
+    const wd = parseDate(date).getDay();                     // 1=Isnin ... 5=Jumaat
+    return { ticks: this.tugas(date).map(() => false), catatan: '', gambar: [], penyelaras: '', semak: '' };
+  },
+  view(date = this.date) {
+    const r = (Store.data.ppm || {})[date];
+    const d = this.defaultRec(date);
+    const v = r ? Object.assign(d, r) : d;
+    const n = this.tugas(date).length;
+    v.ticks = Array.from({ length: n }, (_, i) => !!(v.ticks && v.ticks[i]));
+    v.gambar = Array.isArray(v.gambar) ? v.gambar : [];
+    return v;
+  },
+  commit(r) {
+    if (!Store.data.ppm) Store.data.ppm = {};
+    Store.data.ppm[this.date] = r;
+    Store.save();
+  },
+  // Borang (live = boleh diedit di skrin; bukan live = untuk cetakan)
+  formHTML(r, date, live) {
+    const wd = parseDate(date).getDay();
+    const tugas = this.tugas(date);
+    const dayCell = i => live
+      ? `<td><button type="button" class="ppm-day${wd === i + 1 ? ' on' : ''}" data-ppm="goday" data-i="${i}" title="Papar tugas hari ${PPM_HARI[i]}">${wd === i + 1 ? '√' : ''}</button></td>`
+      : `<td class="c">${wd === i + 1 ? '√' : '&nbsp;'}</td>`;
+    const chk = i => {
+      const inner = `(<span class="ppm-box">${r.ticks[i] ? '√' : '&nbsp;'}</span>)`;
+      return live ? `<button type="button" class="ppm-chk" data-ppm="task" data-i="${i}" aria-label="Tugas ${i + 1}">${inner}</button>` : `<span class="ppm-chk">${inner}</span>`;
+    };
+    const field = (f, rows) => live
+      ? `<textarea class="ppm-ta" rows="${rows}" data-ppm-f="${f}" spellcheck="false">${esc(r[f] || '')}</textarea>`
+      : `<div class="ppm-txt">${esc(r[f] || '')}</div>`;
+    const dt = parseDate(date);
+    const imgs = r.gambar || [];
+    const imgHTML = imgs.map((g, i) => `<figure class="ppm-fig"><img src="${g.src}" alt="">${g.desc ? `<figcaption>${esc(g.desc)}</figcaption>` : ''}${live ? `<button type="button" class="ppm-imgdel" data-ppm="delimg" data-i="${i}" title="Buang gambar" aria-label="Buang gambar">✕</button>` : ''}</figure>`).join('');
+    const addBtn = live ? `<button type="button" class="ppm-addimg" data-ppm="addimg">📷 Tambah Gambar</button>` : '';
+    const dateSet = live ? `<div class="ppm-dayset"><input type="date" class="ppm-date-in" value="${esc(date)}" data-ppm-date aria-label="Tarikh"></div>` : '';
+    return `
+      <div class="ppm-top">
+        <table class="ppm-days"><tr>${PPM_HARI.map((h, i) => `<th class="${wd === i + 1 ? 'on' : ''}">${h}</th>`).join('')}</tr><tr>${PPM_HARI.map((_, i) => dayCell(i)).join('')}</tr></table>
+        <div><table class="ppm-datebox"><tr><th colspan="3">TARIKH</th></tr><tr><td class="dd">${dt.getDate()}</td><td class="mm">${BULAN[dt.getMonth()].toUpperCase()}</td><td class="yy">${dt.getFullYear()}</td></tr></table>${dateSet}</div>
+      </div>
+      <p class="ppm-hours">WAKTU BERKERJA: 7AM - 4 PM</p>
+      <table class="ppm-main">
+        <colgroup><col style="width:54%"><col style="width:15%"><col style="width:31%"></colgroup>
+        <tr><th colspan="3">PERJALANAN PENGAJARAN DAN PEMBELAJARAN</th></tr>
+        <tr><th>BUTIRAN TUGAS</th><th>√</th><th>CATATAN PPM / TUGAS LAIN</th></tr>
+        ${tugas.map((t, i) => `<tr><td>${i + 1}. ${esc(t)}</td><td class="c">${chk(i)}</td>${i === 0 ? `<td class="ppm-note${imgs.length ? ' has-img' : ''}" rowspan="${tugas.length}">${field('catatan', 20)}${imgHTML}${addBtn}</td>` : ''}</tr>`).join('')}
+        <tr><td colspan="2" class="ppm-foot">CATATAN PENOLONG KANAN/PENYELARAS PENDIDIKAN KHAS INTEGRASI:${field('penyelaras', 2)}</td><td class="ppm-foot">DISEMAK OLEH:${field('semak', 2)}</td></tr>
+      </table>`;
+  },
+  render() {
+    const el = $('#ppmForm'); if (!el) return;
+    this.weekBtns();
+    if (this.edit) {
+      const wd = parseDate(this.date).getDay(), nama = wd >= 1 && wd <= 5 ? PPM_HARI[wd - 1] : 'ISNIN';
+      el.innerHTML = `<div class="ppm-edit-box"><p style="font-weight:700;font-size:13px;margin:0 0 6px">UBAH SENARAI TUGAS — ${nama}</p>
+        <p style="font-size:11px;margin:0 0 8px">Satu tugas bagi setiap baris. Tanpa nombor.</p>
+        <textarea data-ppm-edit>${esc(this.tugas(this.date).join('\n'))}</textarea>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-primary" data-ppm="saveedit">Simpan</button>
+          <button class="btn-ghost" style="color:#000" data-ppm="resetedit">Set semula (senarai asal)</button>
+          <button class="btn-ghost" style="color:#000" data-ppm="canceledit">Batal</button></div></div>`;
+      return;
+    }
+    el.innerHTML = this.formHTML(this.view(), this.date, true);
+  },
+  setDate(d) { this.date = d; this.render(); },
+  shift(n) { const d = parseDate(this.date); d.setDate(d.getDate() + n); this.setDate(dateStr(d)); },
+  bind() {
+    const pg = $('#page-ppm');
+    pg.addEventListener('click', e => {
+      const b = e.target.closest('[data-ppm]'); if (!b) return;
+      const a = b.dataset.ppm;
+      if (a === 'prev') return this.shift(-1);
+      if (a === 'next') return this.shift(1);
+      if (a === 'today') return this.setDate(dateStr());
+      if (a === 'print') return this.pdf(false, 'print');
+      if (a === 'pdf') return this.pdf();
+      if (a === 'printweek') return this.pdf(true, 'print');
+      if (a === 'pdfweek') return this.pdf(true);
+      const i = +b.dataset.i;
+      if (a === 'goday') { const d = PPM_ISNIN(this.date); d.setDate(d.getDate() + i); this.edit = false; return this.setDate(dateStr(d)); }
+      if (a === 'edit') { this.edit = true; return this.render(); }
+      if (a === 'addimg') return this.addImage();
+      if (a === 'canceledit') { this.edit = false; return this.render(); }
+      if (a === 'saveedit' || a === 'resetedit') {
+        const wd = parseDate(this.date).getDay(), k = wd >= 1 && wd <= 5 ? wd - 1 : 0;
+        if (!Store.data.ppmTugas) Store.data.ppmTugas = {};
+        const ta = $('#ppmForm [data-ppm-edit]');
+        const list = a === 'saveedit' ? ta.value.split('\n').map(x => x.trim()).filter(Boolean) : [];
+        if (list.length) Store.data.ppmTugas[k] = list; else delete Store.data.ppmTugas[k];
+        Store.save(); this.edit = false; return this.render();
+      }
+      const r = this.view(); const n = r.ticks.length;
+      if (a === 'task') r.ticks[i] = !r.ticks[i];
+      else if (a === 'all') r.ticks = Array(n).fill(true);
+      else if (a === 'none') r.ticks = Array(n).fill(false);
+      else if (a === 'delimg') { if (!confirm('Buang gambar ini?')) return; r.gambar.splice(i, 1); }
+      else return;
+      this.commit(r); this.render();
+    });
+    pg.addEventListener('input', e => {
+      const f = e.target.dataset && e.target.dataset.ppmF; if (!f) return;
+      const r = this.view(); r[f] = e.target.value;
+      clearTimeout(this._t); this._t = setTimeout(() => this.commit(r), 350);
+    });
+    pg.addEventListener('change', e => {
+      if (e.target.matches('[data-ppm-date]') && /^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) this.setDate(e.target.value);
+    });
+  },
+  // Pilih gambar -> mampatkan -> wajib isi penerangan -> masuk ke ruang catatan
+  addImage() {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+    inp.onchange = () => {
+      const f = inp.files && inp.files[0]; if (!f) return;
+      if (!/^image\//.test(f.type)) { UI.toast('Sila pilih fail gambar.', 'error'); return; }
+      const fr = new FileReader();
+      fr.onload = () => {
+        const im = new Image();
+        im.onload = () => {
+          const sc = Math.min(1, 900 / Math.max(im.width, im.height));
+          const w = Math.max(1, Math.round(im.width * sc)), h = Math.max(1, Math.round(im.height * sc));
+          const c = document.createElement('canvas'); c.width = w; c.height = h;
+          const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(im, 0, 0, w, h);
+          this.descDialog(c.toDataURL('image/jpeg', 0.78), w, h);
+        };
+        im.onerror = () => UI.toast('Gambar tidak dapat dibaca.', 'error');
+        im.src = fr.result;
+      };
+      fr.readAsDataURL(f);
+    };
+    inp.click();
+  },
+  descDialog(src, w, h) {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    ov.innerHTML = `<div style="background:#fff;color:#000;border-radius:12px;padding:16px;width:100%;max-width:420px;max-height:92vh;overflow:auto;color-scheme:light;font-family:Arial,Helvetica,sans-serif">
+      <p style="font-weight:700;font-size:15px;margin:0 0 8px">📷 Tambah Gambar</p>
+      <img src="${src}" alt="" style="display:block;width:100%;max-height:260px;object-fit:contain;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc">
+      <label style="display:block;font-size:12px;font-weight:700;margin:10px 0 4px">Penerangan gambar <span style="color:#dc2626">* wajib</span></label>
+      <textarea rows="3" maxlength="300" placeholder="Contoh: Murid membantu mengemas kelas selepas PDP" style="width:100%;border:1px solid #94a3b8;border-radius:6px;padding:8px;font:inherit;font-size:13px;color:#000;background:#fff;color-scheme:light"></textarea>
+      <p data-err style="display:none;color:#dc2626;font-size:12px;margin:4px 0 0">Penerangan wajib diisi sebelum gambar boleh dimasukkan.</p>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button type="button" data-a="cancel" style="padding:8px 14px;border:1px solid #94a3b8;border-radius:8px;background:#fff;color:#000;cursor:pointer">Batal</button>
+        <button type="button" data-a="save" style="padding:8px 14px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer">Masukkan</button>
+      </div></div>`;
+    document.body.appendChild(ov);
+    const ta = ov.querySelector('textarea'), err = ov.querySelector('[data-err]');
+    ta.focus();
+    ta.addEventListener('input', () => { if (ta.value.trim()) err.style.display = 'none'; });
+    ov.addEventListener('click', e => {
+      const a = e.target.dataset && e.target.dataset.a;
+      if (a === 'cancel') return ov.remove();
+      if (a === 'save') {
+        const desc = ta.value.trim();
+        if (!desc) { err.style.display = 'block'; ta.focus(); return; }
+        const r = this.view(); r.gambar.push({ src, w, h, desc });
+        ov.remove(); this.commit(r); this.render();
+        UI.toast('Gambar dimasukkan ke ruang catatan.');
+      }
+    });
+  },
+  // Dari tarikh yang dipilih hingga Jumaat (pilih Isnin = Isnin-Jumaat penuh). Sabtu/Ahad -> Isnin-Jumaat minggu hadapan.
+  weekDates() {
+    const d = parseDate(this.date), wd = d.getDay();
+    if (wd === 6) d.setDate(d.getDate() + 2); else if (wd === 0) d.setDate(d.getDate() + 1);
+    const n = 5 - d.getDay() + 1, out = [];
+    for (let i = 0; i < n; i++) { const x = new Date(d); x.setDate(d.getDate() + i); out.push(dateStr(x)); }
+    return out;
+  },
+  weekBtns() {
+    const ds = this.weekDates(), sh = x => fmtShort(x).slice(0, 5), lbl = `${sh(ds[0])} – ${sh(ds[ds.length - 1])}`;
+    const a = $('#page-ppm [data-ppm="printweek"]'), b = $('#page-ppm [data-ppm="pdfweek"]');
+    if (a) { a.textContent = `🖨 Cetak ${lbl}`; a.title = `Cetak ${ds.length} hari (satu muka surat sehari)`; }
+    if (b) b.textContent = `⬇ PDF ${lbl}`;
+  },
+  // mode 'print' = buka PDF yang sama dan terus cetak (hasil sama seperti muat turun PDF)
+  pdf(week, mode) {
+    if (!window.jspdf) { UI.toast('Pustaka PDF gagal dimuatkan (perlukan internet).', 'error'); return; }
+    const dates = week ? this.weekDates() : [this.date];
+    const doc = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const x0 = 15, W = 180, c1 = 98, c2 = 28, c3 = W - c1 - c2, pad = 2, lh = 3.9;
+    // Tanda √ (bentuk seperti huruf √: cangkuk kiri pendek, lalu garisan panjang ke kanan atas)
+    const tick = (cx, cy, k) => {
+      doc.setLineWidth(0.35);
+      try { doc.setLineJoin('miter'); doc.setLineCap('butt'); } catch (_) {}
+      const ax = cx - 1.0 * k, ay = cy + 0.05 * k, bx = cx - 0.45 * k, by = cy + 0.9 * k, ex = cx + 1.1 * k, ey = cy - 1.0 * k;
+      doc.lines([[bx - ax, by - ay], [ex - bx, ey - by]], ax, ay, [1, 1], 'S', false);
+      doc.setLineWidth(0.25);
+    };
+    dates.forEach((date, di) => {
+    if (di) doc.addPage();
+    const r = this.view(date);
+    doc.setDrawColor(0); doc.setTextColor(0); doc.setLineWidth(0.25);
+    let y = 14;
+    // Hari
+    const dw = 19, hh = 7;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+    PPM_HARI.forEach((h, i) => {
+      const x = x0 + i * dw;
+      doc.rect(x, y, dw, hh); doc.text(h, x + dw / 2, y + hh / 2 + 1.1, { align: 'center' });
+      doc.rect(x, y + hh, dw, hh);
+      if (parseDate(date).getDay() === i + 1) tick(x + dw / 2, y + hh + hh / 2, 1.5);
+    });
+    // Tarikh
+    const bx = x0 + W - 70, by = y, dd = parseDate(date);
+    doc.setFontSize(9);
+    doc.rect(bx, by, 70, 6); doc.text('TARIKH', bx + 35, by + 4.2, { align: 'center' });
+    doc.rect(bx, by + 6, 16, 8); doc.text(String(dd.getDate()), bx + 8, by + 11.4, { align: 'center' });
+    doc.rect(bx + 16, by + 6, 38, 8); doc.text(BULAN[dd.getMonth()].toUpperCase(), bx + 35, by + 11.4, { align: 'center' });
+    doc.rect(bx + 54, by + 6, 16, 8); doc.text(String(dd.getFullYear()), bx + 62, by + 11.4, { align: 'center' });
+    y += hh * 2 + 8;
+    // Waktu berkerja
+    const wk = 'WAKTU BERKERJA: 7AM - 4 PM';
+    doc.setFontSize(9); doc.text(wk, x0, y);
+    doc.line(x0, y + 0.9, x0 + doc.getTextWidth(wk), y + 0.9);
+    y += 4;
+    // Pengepala jadual
+    doc.rect(x0, y, W, 7); doc.text('PERJALANAN PENGAJARAN DAN PEMBELAJARAN', x0 + W / 2, y + 4.7, { align: 'center' }); y += 7;
+    doc.setFontSize(8.5);
+    doc.rect(x0, y, c1, 7); doc.text('BUTIRAN TUGAS', x0 + c1 / 2, y + 4.7, { align: 'center' });
+    doc.rect(x0 + c1, y, c2, 7);
+    tick(x0 + c1 + c2 / 2, y + 3.2, 1.0);
+    doc.rect(x0 + c1 + c2, y, c3, 7); doc.text('CATATAN PPM / TUGAS LAIN', x0 + c1 + c2 + c3 / 2, y + 4.7, { align: 'center' });
+    y += 7;
+    const yTop = y;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+    this.tugas(date).forEach((t, i) => {
+      const lines = doc.splitTextToSize((i + 1) + '. ' + t, c1 - pad * 2);
+      const h = Math.max(7.5, lines.length * lh + 3.2);
+      doc.rect(x0, y, c1, h); doc.rect(x0 + c1, y, c2, h);
+      const sy = y + h / 2 - ((lines.length - 1) * lh) / 2 + 1.1;
+      lines.forEach((ln, k) => doc.text(ln, x0 + pad, sy + k * lh));
+      const cx = x0 + c1 + c2 / 2, cy = y + h / 2 + 1.1;
+      doc.text('(', cx - 6, cy, { align: 'center' }); doc.text(')', cx + 6, cy, { align: 'center' });
+      if (r.ticks[i]) tick(cx, y + h / 2, 1.3);
+      y += h;
+    });
+    // Sel catatan (gabung semua baris)
+    doc.rect(x0 + c1 + c2, yTop, c3, y - yTop);
+    const maxN = Math.max(1, Math.floor((y - yTop - pad * 2) / lh));
+    const cLines = doc.splitTextToSize(r.catatan || '', c3 - pad * 2).slice(0, maxN);
+    cLines.forEach((ln, k) => doc.text(ln, x0 + c1 + c2 + pad, yTop + pad + 2.4 + k * lh));
+    // Gambar + penerangan dalam ruang catatan (lebar ikut ruang catatan)
+    let gy = yTop + pad + (cLines.length ? cLines.length * lh + 3 : 0);
+    const gx = x0 + c1 + c2 + pad, gw = c3 - pad * 2, gBottom = y - pad;
+    doc.setFontSize(7.5);
+    for (const g of (r.gambar || [])) {
+      const dl = doc.splitTextToSize(g.desc || '', gw);
+      const cap = dl.length * 3.2 + 1;
+      let iw = gw, ih = gw * (g.h / g.w);
+      const room = gBottom - gy - cap;
+      if (room < 12) break;                                   // tiada ruang lagi
+      if (ih > room) { ih = room; iw = ih * (g.w / g.h); }    // kecilkan jika melebihi ruang
+      doc.addImage(g.src, 'JPEG', gx, gy, iw, ih);
+      doc.rect(gx, gy, iw, ih);
+      dl.forEach((ln, k) => doc.text(ln, gx, gy + ih + 3 + k * 3.2));
+      gy += ih + cap + 3;
+    }
+    doc.setFontSize(8.5);
+    // Pengaki
+    const fh = 24;
+    doc.rect(x0, y, c1 + c2, fh); doc.rect(x0 + c1 + c2, y, c3, fh);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+    const l1 = doc.splitTextToSize('CATATAN PENOLONG KANAN/PENYELARAS PENDIDIKAN KHAS INTEGRASI:', c1 + c2 - pad * 2);
+    l1.forEach((ln, k) => doc.text(ln, x0 + pad, y + pad + 2.4 + k * lh));
+    doc.splitTextToSize(r.penyelaras || '', c1 + c2 - pad * 2).slice(0, 4).forEach((ln, k) => doc.text(ln, x0 + pad, y + pad + 2.4 + (l1.length + k) * lh));
+    doc.text('DISEMAK OLEH:', x0 + c1 + c2 + pad, y + pad + 2.4);
+    doc.splitTextToSize(r.semak || '', c3 - pad * 2).slice(0, 4).forEach((ln, k) => doc.text(ln, x0 + c1 + c2 + pad, y + pad + 2.4 + (k + 1) * lh));
+    });
+    const lbl = week ? `${fmtShort(dates[0])} - ${fmtShort(dates[dates.length - 1])}` : fmtShort(this.date);
+    if (mode === 'print') {
+      Log.add(week ? 'Cetak PPM mingguan' : 'Cetak PPM', lbl);
+      doc.autoPrint();
+      const url = doc.output('bloburl');
+      const w = window.open(url, '_blank');
+      if (!w) {                                   // pop-up disekat -> cetak melalui iframe tersembunyi
+        const fr = document.createElement('iframe');
+        fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+        fr.onload = () => { try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch (_) { UI.toast('Tidak dapat mencetak. Sila guna butang PDF.', 'error'); } };
+        fr.src = url; document.body.appendChild(fr);
+        setTimeout(() => fr.remove(), 60000);
+      }
+      return;
+    }
+    doc.save(week ? `senarai-tugas-ppm_${dates[0]}_hingga_${dates[dates.length - 1]}.pdf` : `senarai-tugas-ppm_${this.date}.pdf`);
+    Log.add('Muat turun PDF PPM', lbl);
+    UI.toast('PDF dimuat turun.');
+  }
+};
+
+/* ---------- 15. KOD QR ---------- */
+const QR = {
+  payload(id) { return 'PPKI-SKTG|' + id; },
+  ok() { return typeof QRCode !== 'undefined'; },
+  make(el, text, size) { new QRCode(el, { text, width: size, height: size, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M }); },
+  dataURL(text, size = 200) {
+    const tmp = document.createElement('div');
+    this.make(tmp, text, size);
+    const cv = tmp.querySelector('canvas');
+    return cv ? cv.toDataURL('image/png') : '';
+  },
+  render() {
+    if (!this.ok()) { $('#qrMsg').classList.remove('hidden'); $('#qrGrid').innerHTML = ''; return; }
+    $('#qrMsg').classList.add('hidden');
+    const list = Students.filter($('#qrSearch').value, '');
+    $('#qrGrid').innerHTML = list.length ? list.map(s => `
+      <div class="card p-3 text-center fade-in hover:shadow-md transition">
+        <div class="qr-holder mx-auto w-28 h-28 flex items-center justify-center bg-white rounded-lg p-1" data-qr="${esc(s.id)}"></div>
+        <div class="mt-2 text-sm font-semibold truncate" title="${esc(s.name)}">${esc(shortName(s.name))}</div>
+        <div class="text-xs text-slate-500"><span class="font-mono">${esc(s.id)}</span> • ${esc(s.kelas)}</div>
+        <div class="flex gap-1 mt-2">
+          <button class="btn-ghost !px-2 !py-1 text-xs flex-1" data-qr-open="${esc(s.id)}">Besar</button>
+          <button class="btn-primary !px-2 !py-1 text-xs flex-1" data-qr-dl="${esc(s.id)}">PNG</button>
+        </div>
+      </div>`).join('') : '<p class="text-slate-500 col-span-full text-center py-8">Tiada murid.</p>';
+    $$('[data-qr]').forEach(el => this.make(el, this.payload(el.dataset.qr), 104));
+  },
+  // Gabungkan QR + nama murid menjadi satu imej PNG
+  cardPNG(s) {
+    const qrUrl = this.dataURL(this.payload(s.id), 300);
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas'); c.width = 360; c.height = 460;
+        const x = c.getContext('2d');
+        x.fillStyle = '#ffffff'; x.fillRect(0, 0, 360, 460);
+        x.fillStyle = '#1d4ed8'; x.fillRect(0, 0, 360, 44);
+        x.fillStyle = '#ffffff'; x.font = 'bold 18px Arial'; x.textAlign = 'center'; x.fillText('SISTEM PPKI SKTG', 180, 29);
+        x.drawImage(img, 30, 60, 300, 300);
+        x.fillStyle = '#000000'; x.font = 'bold 18px Arial';
+        x.fillText(shortName(s.name), 180, 395);
+        x.font = '16px Arial'; x.fillText(`${s.id}  •  ${s.kelas}`, 180, 422);
+        resolve(c.toDataURL('image/png'));
+      };
+      img.onerror = () => resolve(qrUrl);
+      img.src = qrUrl;
+    });
+  },
+  async download(id) {
+    const s = Students.get(id); if (!s || !this.ok()) return;
+    const url = await this.cardPNG(s);
+    const a = document.createElement('a');
+    a.href = url; a.download = `qr_${s.id}_${shortName(s.name).replace(/\s+/g, '-')}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    Log.add('Muat turun QR', `${s.name} (${s.id})`);
+  },
+  openOne(id) {
+    const s = Students.get(id); if (!s) return;
+    if (!this.ok()) { UI.toast('Pustaka QR gagal dimuatkan (perlukan internet).', 'error'); return; }
+    UI.modal({
+      title: 'Kod QR Murid',
+      body: `<div class="text-center">
+        <div id="qrBig" class="mx-auto w-[240px] h-[240px] bg-white p-2 rounded-xl"></div>
+        <div class="mt-3 font-bold">${esc(s.name)}</div>
+        <div class="text-sm text-slate-500"><span class="font-mono">${esc(s.id)}</span> • ${esc(s.kelas)}</div></div>`,
+      buttons: [
+        { label: 'Tutup', cls: 'btn-ghost' },
+        { label: '⬇ Muat Turun PNG', cls: 'btn-primary', onClick: () => { this.download(id); return false; } }
+      ],
+      onMount: () => this.make($('#qrBig'), this.payload(id), 224)
+    });
+  },
+  printAll() {
+    if (!this.ok()) { UI.toast('Pustaka QR gagal dimuatkan (perlukan internet).', 'error'); return; }
+    const list = Students.filter($('#qrSearch').value, '');
+    if (!list.length) { UI.toast('Tiada murid untuk dicetak.', 'warn'); return; }
+    $('#printArea').innerHTML = `<h1>Kod QR SISTEM PPKI SKTG</h1><p>Imbas kod ini untuk menanda kehadiran.</p><br>
+      <div class="qr-grid">${list.map(s => `
+        <div class="qr-card"><img src="${this.dataURL(this.payload(s.id), 200)}" alt="QR ${esc(s.id)}">
+        <div style="font-weight:bold;font-size:12px;margin-top:4px">${esc(shortName(s.name))}</div>
+        <div style="font-size:11px">${esc(s.id)} • ${esc(s.kelas)}</div></div>`).join('')}</div>`;
+    Log.add('Cetak kod QR', `${list.length} murid`);
+    setTimeout(() => window.print(), 150);
+  }
+};
+
+/* ---------- 16. HALAMAN LOG AKTIVITI ---------- */
+const LogPage = {
+  filtered() {
+    Log.load();
+    const q = $('#logSearch').value.trim().toLowerCase();
+    return Log.list.slice().reverse().filter(l => !q || [l.user, l.action, l.detail, l.page, l.tab, fmtStamp(l.t)].join(' ').toLowerCase().includes(q));
+  },
+  render() {
+    const list = this.filtered();
+    const LIMIT = 400;
+    $('#logBody').innerHTML = list.length ? list.slice(0, LIMIT).map(l => `
+      <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/40">
+        <td class="td font-mono text-xs whitespace-nowrap">${fmtStamp(l.t)}</td>
+        <td class="td font-semibold">${esc(l.user)}</td>
+        <td class="td whitespace-nowrap"><span class="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300">${esc(l.action)}</span></td>
+        <td class="td">${esc(l.detail)}</td>
+        <td class="td text-xs whitespace-nowrap">${esc(l.page)}</td>
+        <td class="td font-mono text-xs whitespace-nowrap">${esc(l.tab)}</td>
+      </tr>`).join('') : '<tr><td colspan="6" class="td text-center text-slate-500 py-8">Tiada log.</td></tr>';
+    $('#logInfo').textContent = `${list.length} entri dipadankan (jumlah log: ${Log.list.length}, maksimum disimpan: ${APP.MAX_LOG}). Tab semasa: ${APP.TAB_ID}.`;
+  },
+  exportCSV() {
+    const list = this.filtered();
+    if (!list.length) { UI.toast('Tiada log untuk dieksport.', 'warn'); return; }
+    const rows = [['Masa', 'Pengguna', 'Tindakan', 'Butiran', 'Halaman', 'Tab']];
+    list.forEach(l => rows.push([fmtStamp(l.t), l.user, l.action, l.detail, l.page, l.tab]));
+    downloadCSV(`log-aktiviti_${dateStr()}.csv`, rows);
+    UI.toast('Log dieksport.');
+  },
+  clear() {
+    UI.confirm('Kosongkan SEMUA log aktiviti? Tindakan ini tidak boleh dibatalkan.', () => {
+      Log.list = []; Log.save();
+      Log.add('Kosongkan log', 'Log aktiviti dikosongkan');
+      this.render(); Store.checkQuota();
+      UI.toast('Log dikosongkan.', 'warn');
+    }, { okLabel: 'Kosongkan' });
+  }
+};
+
+/* ---------- 17. TETAPAN & BACKUP ---------- */
+const Settings = {
+  render() {
+    $('#setMasuk').value = Store.data.settings.waktuMasuk || '07:30';
+    Store.checkQuota();
+  },
+  saveMasuk() {
+    const v = $('#setMasuk').value;
+    if (!v) { UI.toast('Sila pilih waktu.', 'error'); return; }
+    Store.data.settings.waktuMasuk = v;
+    Store.save();
+    Log.add('Tukar tetapan', `Waktu masuk = ${v}`);
+    UI.toast('Waktu masuk disimpan.');
+  },
+  backup() {
+    Log.load();
+    const payload = {
+      app: 'SISTEM PPKI SKTG', version: 1, exportedAt: new Date().toISOString(), exportedBy: Auth.user,
+      data: { students: Store.data.students, attendance: Store.data.attendance, settings: Store.data.settings, ppm: Store.data.ppm || {} },
+      log: Log.list
+    };
+    const d = new Date();
+    downloadBlob(`backup-ppki-sktg_${dateStr(d)}_${pad(d.getHours())}${pad(d.getMinutes())}.json`, JSON.stringify(payload, null, 2), 'application/json');
+    Log.add('Backup', `${Store.data.students.length} murid, ${Object.keys(Store.data.attendance).length} hari rekod`);
+    UI.toast('Backup JSON dimuat turun.');
+  },
+  restore(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      let obj;
+      try { obj = JSON.parse(String(reader.result)); } catch (e) { UI.toast('Fail JSON tidak sah.', 'error'); return; }
+      const d = obj && obj.data;
+      if (!d || !Array.isArray(d.students) || !d.attendance || typeof d.attendance !== 'object') { UI.toast('Struktur fail backup tidak sah.', 'error'); return; }
+      UI.confirm(`Restore akan MENGGANTIKAN semua data semasa dengan ${d.students.length} murid dan ${Object.keys(d.attendance).length} hari rekod daripada fail ini. Teruskan?`, () => {
+        Store.data = { students: d.students, attendance: normalizeAttendance(d.attendance), ppm: (d.ppm && typeof d.ppm === 'object') ? d.ppm : {}, settings: Object.assign({ waktuMasuk: '07:30' }, d.settings || {}, (d.settings && d.settings.logo) ? {} : (Logo.get() ? { logo: Logo.get() } : {})) };
+        if (Array.isArray(obj.log)) { Log.list = obj.log; Log.save(); }
+        Store.save();
+        Log.add('Restore', `${d.students.length} murid dipulihkan daripada backup`);
+        Students.resetForm();
+        Logo.apply();
+        Router.refresh();
+        UI.toast('Data berjaya dipulihkan.');
+      }, { title: 'Restore Data', okLabel: 'Ya, Restore', danger: false });
+      $('#restoreFile').value = '';
+    };
+    reader.onerror = () => UI.toast('Gagal membaca fail.', 'error');
+    reader.readAsText(file, 'UTF-8');
+  },
+  reseed() {
+    UI.confirm('Gantikan SEMUA data semasa dengan data contoh (10 murid + rekod 40 hari)?', () => {
+      const logoKekal = Logo.get();
+      Store.data = Seed.build();
+      if (logoKekal) Store.data.settings.logo = logoKekal;
+      Store.save();
+      Log.add('Muat data contoh', '10 murid contoh');
+      Students.resetForm(); Router.refresh();
+      UI.toast('Data contoh dimuatkan.');
+    }, { okLabel: 'Ya, Gantikan' });
+  },
+  wipe() {
+    UI.modal({
+      title: 'Padam Semua Data',
+      body: `<p class="text-sm text-slate-600 dark:text-slate-300 mb-3">Semua murid dan rekod kehadiran akan dipadam KEKAL. Taip <b>PADAM</b> untuk mengesahkan.</p><input id="wipeConfirm" class="input" placeholder="PADAM" autocomplete="off">`,
+      buttons: [
+        { label: 'Batal', cls: 'btn-ghost' },
+        { label: 'Padam Semua', cls: 'btn-red', onClick: () => {
+          if ($('#wipeConfirm').value.trim() !== 'PADAM') { UI.toast('Sila taip PADAM untuk mengesahkan.', 'error'); return false; }
+          Store.data.students = []; Store.data.attendance = {};
+          Store.save();
+          Log.add('Padam semua data', 'Murid dan kehadiran dipadam');
+          Students.resetForm(); Router.refresh();
+          UI.toast('Semua data murid & kehadiran dipadam.', 'warn');
+        } }
+      ],
+      onMount: () => setTimeout(() => $('#wipeConfirm') && $('#wipeConfirm').focus(), 50)
+    });
+  }
+};
+
+/* ---------- 18. PWA, TEMA, JAM & INISIALISASI ---------- */
+const PWA = {
+  deferred: null,
+  // Lukis ikon aplikasi (PNG) menggunakan canvas
+  icon(size) {
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const x = c.getContext('2d');
+    const g = x.createLinearGradient(0, 0, size, size);
+    g.addColorStop(0, '#1d4ed8'); g.addColorStop(1, '#059669');
+    x.fillStyle = g; x.fillRect(0, 0, size, size);
+    // bintang
+    x.fillStyle = '#fde047'; x.beginPath();
+    const cx = size / 2, cy = size * 0.40, R = size * 0.22, r = R * 0.45;
+    for (let i = 0; i < 10; i++) {
+      const ang = -Math.PI / 2 + i * Math.PI / 5, rad = i % 2 === 0 ? R : r;
+      const px = cx + Math.cos(ang) * rad, py = cy + Math.sin(ang) * rad;
+      i === 0 ? x.moveTo(px, py) : x.lineTo(px, py);
+    }
+    x.closePath(); x.fill();
+    x.fillStyle = '#ffffff'; x.font = `800 ${Math.round(size * 0.2)}px Arial`; x.textAlign = 'center';
+    x.fillText('PPKI', size / 2, size * 0.82);
+    return c.toDataURL('image/png');
+  },
+  init() {
+    try {
+      const i192 = this.icon(192), i512 = this.icon(512);
+      const setLink = (rel, href, extra) => { const l = document.createElement('link'); l.rel = rel; l.href = href; if (extra) Object.keys(extra).forEach(k => l.setAttribute(k, extra[k])); document.head.appendChild(l); };
+      setLink('icon', i192, { type: 'image/png' });
+      setLink('apple-touch-icon', i192);
+      const manifest = {
+        name: 'SISTEM PPKI SKTG', short_name: 'PPKI SKTG', description: 'SISTEM PPKI SKTG',
+        display: 'standalone', orientation: 'portrait', background_color: '#0f172a', theme_color: '#1d4ed8', lang: 'ms',
+        icons: [{ src: i192, sizes: '192x192', type: 'image/png', purpose: 'any maskable' }, { src: i512, sizes: '512x512', type: 'image/png', purpose: 'any maskable' }]
+      };
+      if (/^https?:$/.test(location.protocol)) manifest.start_url = location.href.split('#')[0];
+      setLink('manifest', 'data:application/manifest+json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifest)));
+    } catch (e) { /* ikon/manifest pilihan sahaja */ }
+
+    // Service worker (sokongan offline) - hanya berfungsi melalui http(s)/localhost, bukan file://
+    if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+      navigator.serviceWorker.register('sw.js').then(() => {
+        // Pra-simpan halaman & pustaka CDN supaya boleh dibuka tanpa internet
+        if (!window.caches) return;
+        caches.open('ppki-sktg-v1').then(cache => {
+          cache.add(location.href).catch(() => {});
+          Array.from(document.scripts).map(s => s.src).filter(Boolean).concat(Array.from(document.querySelectorAll('link[rel=stylesheet]')).map(l => l.href))
+            .forEach(u => fetch(u, { mode: 'no-cors' }).then(r => cache.put(u, r)).catch(() => {}));
+        });
+      }).catch(() => { /* sw.js tiada - abaikan */ });
+    }
+    window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); this.deferred = e; $('#btnInstall').classList.remove('hidden'); });
+    window.addEventListener('appinstalled', () => { $('#btnInstall').classList.add('hidden'); UI.toast('Aplikasi berjaya dipasang.'); });
+  },
+  install() { if (this.deferred) { this.deferred.prompt(); this.deferred = null; $('#btnInstall').classList.add('hidden'); } }
+};
+
+const Theme = {
+  init() {
+    let dark = false;
+    try { const t = localStorage.getItem(APP.KEY_THEME); dark = t ? t === 'gelap' : window.matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) { /* abaikan */ }
+    this.apply(dark);
+  },
+  apply(dark) {
+    document.documentElement.classList.toggle('dark', dark);
+    const b = $('#btnTheme'); if (b) b.textContent = dark ? '☀️' : '🌙';
+    try { localStorage.setItem(APP.KEY_THEME, dark ? 'gelap' : 'cerah'); } catch (e) { /* abaikan */ }
+    const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = dark ? '#0f172a' : '#1d4ed8';
+  },
+  toggle() {
+    this.apply(!document.documentElement.classList.contains('dark'));
+    if (Router.cur === 'laporan' && Auth.user) Rep.render();      // warna graf mengikut tema
+  }
+};
+
+const Clock = {
+  tick() {
+    const d = new Date();
+    const t = $('#clockTime'), dt = $('#clockDate');
+    if (t) t.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    if (dt) dt.textContent = fmtLong(d);
+  },
+  start() { this.tick(); setInterval(() => this.tick(), 1000); }
+};
+
+const App = {
+  // Paparkan aplikasi
+  enter() {
+    Att.date = dateStr();
+    Att.cal = { y: new Date().getFullYear(), m: new Date().getMonth() };
+    Students.resetForm();
+    Router.go('dashboard');
+    Store.checkQuota();
+    Store.touchSaved();
+  },
+  bind() {
+    // --- Header ---
+    $('#btnMenu').addEventListener('click', () => $('#sidebar').classList.contains('-translate-x-full') ? Router.openDrawer() : Router.closeDrawer());
+    $('#overlay').addEventListener('click', () => Router.closeDrawer());
+    $('#btnTheme').addEventListener('click', () => Theme.toggle());
+    $('#btnInstall').addEventListener('click', () => PWA.install());
+    $('#btnFull').addEventListener('click', () => {
+      if (!document.fullscreenElement) { (document.documentElement.requestFullscreen || (() => Promise.reject())).call(document.documentElement).catch(() => UI.toast('Skrin penuh tidak disokong.', 'warn')); }
+      else document.exitFullscreen();
+    });
+    document.addEventListener('fullscreenchange', () => { $('#btnFull').textContent = document.fullscreenElement ? '🗗' : '⛶'; });
+
+    PPM.bind();
+    // --- Navigasi (sidebar + butang data-go) ---
+    document.addEventListener('click', e => {
+      const nav = e.target.closest('[data-page]');
+      if (nav && nav.classList.contains('nav-btn')) { Router.go(nav.dataset.group ? Router.lastRekod : nav.dataset.page); return; }
+      const rt = e.target.closest('[data-rtab]');
+      if (rt) { Router.go(rt.dataset.rtab); return; }
+      const go = e.target.closest('[data-go]');
+      if (go) Router.go(go.dataset.go);
+    });
+
+    // --- Murid ---
+    $('#stuForm').addEventListener('submit', e => Students.submit(e));
+    $('#sCancel').addEventListener('click', () => Students.resetForm());
+    $('#sFotoPick').addEventListener('click', () => $('#sFoto').click());
+    $('#sFoto').addEventListener('change', e => { if (e.target.files[0]) Students.pickFoto(e.target.files[0], e.target); });
+    $('#sFotoDel').addEventListener('click', () => { Students.pendingFoto = ''; Students.renderFotoPrev(); UI.toast('Foto akan dibuang bila anda tekan Simpan.', 'info', 3000); });
+    $('#sName').addEventListener('input', () => { if (!Students.currentFoto()) Students.renderFotoPrev(); });
+    $('#fotoQuick').addEventListener('change', e => { if (e.target.files[0]) Students.saveQuickFoto(e.target.files[0], e.target); });
+    $('#stuSearch').addEventListener('input', () => Students.render());
+    $('#stuKelas').addEventListener('change', () => Students.render());
+    $('#csvFile').addEventListener('change', e => { if (e.target.files[0]) Students.importFile(e.target.files[0]); });
+    $('#csvTemplate').addEventListener('click', () => Students.template());
+    $('#stuBody').addEventListener('click', e => {
+      const b = e.target.closest('[data-act]'); if (!b) return;
+      if (b.dataset.act === 'edit') Students.startEdit(b.dataset.id);
+      else if (b.dataset.act === 'del') Students.remove(b.dataset.id);
+      else if (b.dataset.act === 'qr') QR.openOne(b.dataset.id);
+      else if (b.dataset.act === 'foto') Students.quickFoto(b.dataset.id);
+    });
+
+    // --- Kehadiran ---
+    $('#calGrid').addEventListener('click', e => { const b = e.target.closest('[data-cal]'); if (b) Att.setDate(b.dataset.cal); });
+    $('#calPrev').addEventListener('click', () => { Att.cal.m--; if (Att.cal.m < 0) { Att.cal.m = 11; Att.cal.y--; } Att.renderCalendar(); });
+    $('#calNext').addEventListener('click', () => { Att.cal.m++; if (Att.cal.m > 11) { Att.cal.m = 0; Att.cal.y++; } Att.renderCalendar(); });
+    $('#dayPrev').addEventListener('click', () => Att.setDate(dateStr(addDays(parseDate(Att.date), -1))));
+    $('#dayNext').addEventListener('click', () => Att.setDate(dateStr(addDays(parseDate(Att.date), 1))));
+    $('#btnToday').addEventListener('click', () => Att.setDate(dateStr()));
+    $('#attSearch').addEventListener('input', () => Att.renderList());
+    $('#attKelas').addEventListener('change', () => Att.renderList());
+    $('#btnAllPresent').addEventListener('click', () => Att.markAll());
+    $('#btnResetDay').addEventListener('click', () => Att.resetDay());
+    $('#attList').addEventListener('click', e => {
+      const sb = e.target.closest('[data-status]');
+      if (sb) { Att.selId = sb.dataset.id; Att.mark(sb.dataset.id, sb.dataset.status); Att.selectRow(sb.dataset.id); return; }
+      const nb = e.target.closest('[data-act="note"]');
+      if (nb) { Att.selectRow(nb.dataset.id); Att.openNote(nb.dataset.id); return; }
+      const row = e.target.closest('[data-row]');
+      if (row) Att.selectRow(row.dataset.row);
+    });
+    $('#attList').addEventListener('change', e => {
+      const sel = e.target.closest('[data-sebab]');
+      if (sel) { Att.setSebab(sel.dataset.sebab, sel.value); return; }
+      const inp = e.target.closest('[data-sebabnote]');
+      if (inp) Att.setSebabNote(inp.dataset.sebabnote, inp.value, true);
+    });
+    $('#attList').addEventListener('keydown', e => {
+      if (e.target.closest && e.target.closest('[data-sebabnote]')) {
+        e.stopPropagation();                              // huruf H/T/N, Delete dll. tidak mencetuskan pintasan
+        if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }   // Enter = simpan
+      }
+    });
+    $('#attList').addEventListener('input', e => {
+      const inp = e.target.closest('[data-sebabnote]');
+      if (inp) Att.setSebabNote(inp.dataset.sebabnote, inp.value, false);
+    });
+    const doScan = () => { const i = $('#scanInput'); Att.scan(i.value); i.value = ''; i.focus(); };
+    $('#scanInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doScan(); } });
+    $('#btnScan').addEventListener('click', doScan);
+    $('#btnCamera').addEventListener('click', () => Att.openCamera());
+    document.addEventListener('keydown', e => Att.onKey(e));
+
+    // --- Laporan ---
+    $('#repMonth').addEventListener('change', e => { Rep.setMonth(e.target.value); Rep.render(); });
+    ['#repFrom', '#repTo'].forEach(s => $(s).addEventListener('change', () => { $('#repMonth').value = ''; Rep.render(); }));
+    ['#repKelas', '#repStatus'].forEach(s => $(s).addEventListener('change', () => Rep.render()));
+    $('#repSearch').addEventListener('input', () => Rep.render());
+    $('#btnCsv').addEventListener('click', () => Rep.exportCSV());
+    $('#btnExportGender').addEventListener('click', () => Rep.exportGender());
+    $('#btnPdf').addEventListener('click', () => Rep.exportPDF());
+    $('#btnPrint').addEventListener('click', () => Rep.print());
+
+    // --- QR ---
+    $('#qrSearch').addEventListener('input', () => QR.render());
+    $('#btnQrPrint').addEventListener('click', () => QR.printAll());
+    $('#qrGrid').addEventListener('click', e => {
+      const o = e.target.closest('[data-qr-open]'); if (o) { QR.openOne(o.dataset.qrOpen); return; }
+      const d = e.target.closest('[data-qr-dl]'); if (d) QR.download(d.dataset.qrDl);
+    });
+
+    // --- Log ---
+    $('#logSearch').addEventListener('input', () => LogPage.render());
+    $('#btnLogCsv').addEventListener('click', () => LogPage.exportCSV());
+    $('#btnLogClear').addEventListener('click', () => LogPage.clear());
+
+    // --- Tetapan ---
+    $('#btnSaveMasuk').addEventListener('click', () => Settings.saveMasuk());
+    $('#btnBackup').addEventListener('click', () => Settings.backup());
+    $('#restoreFile').addEventListener('change', e => { if (e.target.files[0]) Settings.restore(e.target.files[0]); });
+    $('#btnSeed').addEventListener('click', () => Settings.reseed());
+    $('#btnWipe').addEventListener('click', () => Settings.wipe());
+    $('#btnLogoPick').addEventListener('click', () => $('#logoFile').click());
+    $('#logoFile').addEventListener('change', e => { if (e.target.files[0]) Logo.change(e.target.files[0], e.target); });
+    $('#btnLogoReset').addEventListener('click', () => Logo.reset());
+    $('#hdrLogo').addEventListener('click', () => Router.go('tetapan'));
+
+    window.addEventListener('pagehide', () => { if (Auth.user && Att._noteTimer) Store.save(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden && Auth.user && Att._noteTimer) Store.save(); });
+
+    // --- Umum: Escape tutup modal, penjejak aktiviti sesi ---
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && UI.hasModal()) UI.closeModal(); });
+
+    // Segerak antara tab: kemas kini data
+    window.addEventListener('storage', e => {
+      if (e.key === APP.KEY_DATA && e.newValue && Auth.user) {
+        try { const d = JSON.parse(e.newValue); if (d && Array.isArray(d.students)) { normalizeAttendance(d.attendance); Store.data = d; if (!Att.typing()) Router.refresh(); } } catch (err) { /* abaikan */ }
+      }
+    });
+  },
+  init() {
+    Theme.init();
+    PWA.init();
+    Log.load();
+    Store.load();
+    Logo.apply();
+    this.bind();
+    Sync.bindUI();
+    Clock.start();
+    // Buang sisa data akaun/sesi versi lama (kunci v1)
+    try { ['ppki_users_v1', 'ppki_session_v1', 'ppki_lock_v1'].forEach(k => localStorage.removeItem(k)); } catch (e) { /* abaikan */ }
+    Auth.start();   // papar skrin log masuk (aplikasi dibuka selepas log masuk berjaya)
+  }
+};
+
+document.addEventListener('DOMContentLoaded', () => App.init());
+</script>
+
+<!--
+=====================================================================
+ARAHAN PENGGUNAAN - SISTEM PPKI SKTG
+=====================================================================
+
+A. MEMULAKAN
+   1. Simpan fail ini sebagai "kehadiran-ppki-sktg.html" dan buka terus dalam
+      pelayar (Chrome / Edge / Firefox / Safari). Tiada pelayan diperlukan.
+   2. Sambungan internet diperlukan untuk memuatkan Tailwind CSS, Chart.js,
+      qrcode.js, jsPDF dan fon (CDN).
+   3. Data contoh (10 murid + rekod 40 hari persekolahan) dimuatkan secara
+      automatik pada kali pertama. Boleh dipadam atau dimuat semula di
+      menu Tetapan & Backup.
+
+B. AKSES
+   - Sistem kata laluan / log masuk telah dibuang. Fail dibuka terus ke Papan
+     Pemuka tanpa sebarang kata laluan.
+   - Sesiapa yang boleh membuka fail ini pada pelayar/komputer yang sama boleh
+     melihat dan mengubah data. Simpan fail dan backup di tempat yang selamat.
+   - Menu Log Aktiviti merekod apa yang dilakukan, bila, di halaman mana dan dari
+     tab pelayar yang mana (cth: TAB-3FA2). Log boleh dicari dan dieksport ke CSV.
+
+C. MENAMBAH MURID
+   1. Buka menu "Daftar Murid".
+   2. Isi Nama Penuh, Jantina (Lelaki / Perempuan) dan Kelas. Nama Penjaga dan
+      No. Telefon Penjaga adalah pilihan (boleh dikosongkan). ID murid
+      (cth: M011) dijana secara automatik. Klik "Tambah Murid".
+   3. Edit: klik "Edit" pada senarai, ubah maklumat, klik "Simpan Perubahan".
+   4. Padam: klik ikon tong sampah dan sahkan. Rekod kehadiran murid itu
+      turut dipadam.
+   5. Import Excel: pilih fail .xlsx/.xls (atau CSV) dengan lajur Nama, Jantina, Kelas
+      (Nama Penjaga & No. Telefon pilihan). Lajur dikesan melalui tajuk, jadi susunan boleh berbeza.
+      Jantina: Lelaki/Perempuan atau L/P. Klik "Muat turun templat Excel" untuk contoh.
+   6. Carian pantas: taip nama, ID atau kelas pada kotak carian.
+   7. Logo sekolah: menu Tetapan & Backup > Logo Sekolah / PPKI > Muat Naik / Tukar
+      Logo (atau klik logo di header). "Logo Asal" memulihkan logo PPKI asal.
+   8. Foto profil murid: dalam borang, klik "Pilih / Tukar Foto" (atau "Buang Foto").
+      Atau klik terus avatar murid pada senarai untuk tukar foto serta-merta.
+      Gambar dipotong segi empat sama dan dikecilkan secara automatik.
+
+D. MEREKOD KEHADIRAN
+   1. Buka menu "Rekod Kehadiran". Pilih tarikh pada kalendar (titik hijau =
+      semua murid ditanda, titik kuning = separa). Gunakan butang
+      Hari Sebelum / Hari Ini / Hari Seterusnya.
+   2. Klik Hadir (hijau) atau Tidak Hadir (merah) pada baris murid. Masa
+      check-in direkod automatik. Klik status yang sama sekali lagi untuk
+      membatalkannya.
+   3. Bila Tidak Hadir dipilih, dropdown sebab muncul: MC/SAKIT, MASALAH
+      PENGANGKUTAN, TIADA SEBAB MUNASABAH atau LAIN-LAIN. Jika LAIN-LAIN
+      dipilih, petak teks muncul untuk menaip sebab. Murid Hadir boleh diberi
+      nota (ikon nota), cth: lewat kerana bas rosak.
+   4. "Tandakan Semua Hadir" menandakan semua murid yang dipaparkan dan
+      belum ditanda sebagai Hadir. "Reset Hari Ini" mengosongkan rekod tarikh
+      yang dipilih (dengan pengesahan).
+   5. Pintasan papan kekunci (apabila tidak menaip dalam kotak teks):
+        H = Hadir, T = Tidak Hadir
+        Anak panah atas/bawah = pilih murid, N = nota, Delete = kosongkan status
+      Selepas menekan H/T, pilihan akan melompat ke murid seterusnya.
+   6. Imbas QR: taip/imbas ID (atau kandungan kod QR) pada kotak "Imbas Kod QR /
+      ID" lalu tekan Enter. Murid yang tiba selepas waktu masuk (lalai 07:30,
+      boleh diubah di Tetapan) direkod Hadir dengan nota Lewat. Butang kamera
+      berfungsi pada pelayar yang menyokong BarcodeDetector (cth: Chrome Android).
+
+E. LAPORAN & STATISTIK
+   - Pilih bulan atau julat tarikh, kelas, carian murid dan status.
+   - "Statistik Harian Mengikut Jantina": jadual Hadir / Tidak Hadir / Jumlah bagi
+     lelaki dan perempuan setiap hari, jumlah keseluruhan dan peratus. Boleh
+     dieksport ke CSV, dan turut ada dalam PDF dan cetakan.
+   - Lihat kad ringkasan, graf bar harian, graf pai status, peratus kehadiran
+     setiap murid dan senarai murid perhatian (kurang 80%).
+   - Peratus kehadiran = Hadir / jumlah hari direkodkan. Pecahan sebab tidak
+     hadir dipaparkan di bawah kad ringkasan.
+   - Butang CSV dan PDF untuk eksport. "Cetak Laporan Bulanan" membuka dialog
+     cetak (boleh simpan sebagai PDF).
+
+F. KOD QR MURID
+   - Menu "Kod QR Murid": lihat, besarkan, muat turun PNG atau cetak semua
+     kod QR. Kandungan kod: PPKI-SKTG|ID-MURID.
+
+G. BACKUP & RESTORE
+   - Semua perubahan disimpan automatik ke localStorage pelayar.
+   - Menu Tetapan & Backup > "Eksport Semua Data (JSON)" untuk backup.
+   - Untuk restore: pilih fail JSON backup, sahkan penggantian data.
+   - Amaran dipaparkan apabila storan melebihi 80%. Sila buat backup dan
+     kosongkan log lama.
+   - Data hanya wujud pada pelayar dan peranti yang sama. Buat backup berkala.
+
+H. PWA & OFFLINE
+   - Aplikasi mengandungi manifest dan ikon automatik. Untuk "Pasang ke
+     telefon" dan sokongan offline, hos fail ini melalui HTTPS (cth: GitHub
+     Pages) atau localhost, dan letakkan fail "sw.js" yang disertakan
+     bersama dalam folder yang sama.
+   - Apabila dibuka terus sebagai fail (file://), pemasangan PWA dan
+     service worker tidak tersedia (had pelayar); aplikasi tetap berfungsi
+     secara biasa dengan internet.
+   - Kandungan sw.js (cache stale-while-revalidate):
+       const CACHE = 'ppki-sktg-v1';
+       self.addEventListener('install', e => { self.skipWaiting(); });
+       self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
+       self.addEventListener('fetch', e => {
+         if (e.request.method !== 'GET') return;
+         e.respondWith(caches.match(e.request).then(cached => {
+           const net = fetch(e.request).then(res => {
+             if (res && (res.status === 200 || res.type === 'opaque')) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
+             return res;
+           }).catch(() => cached);
+           return cached || net;
+         }));
+       });
+
+I. LAIN-LAIN
+   - Butang bulan/matahari: tukar mod gelap/cerah (pilihan disimpan).
+   - Butang ⛶: mod skrin penuh.
+   - Jam digital dan tarikh Bahasa Melayu dipaparkan di header.
+=====================================================================
+-->
+</body>
+</html>
