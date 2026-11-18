@@ -391,6 +391,7 @@
             <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
               <h3 class="font-bold text-lg">📋 Senarai Murid <span id="stuCount" class="text-sm font-normal text-slate-500"></span></h3>
             </div>
+            <p id="stuMeta" class="text-xs text-slate-500 dark:text-slate-400 mb-2"></p>
             <div class="grid sm:grid-cols-2 gap-2 mb-3">
               <input id="stuSearch" class="input" type="search" placeholder="🔍 Cari pantas: nama / ID / kelas...">
               <select id="stuKelas" class="input"></select>
@@ -398,7 +399,7 @@
             <div class="overflow-x-auto scroll-thin">
               <table class="min-w-full">
                 <thead class="bg-slate-50 dark:bg-slate-700/50">
-                  <tr><th class="th">Murid</th><th class="th">Jantina</th><th class="th">Kelas</th><th class="th">Penjaga</th><th class="th">Telefon</th><th class="th text-right">Tindakan</th></tr>
+                  <tr><th class="th">Murid</th><th class="th">Jantina</th><th class="th">Kelas</th><th class="th">Penjaga</th><th class="th">Telefon</th><th class="th">Kemas kini</th><th class="th text-right">Tindakan</th></tr>
                 </thead>
                 <tbody id="stuBody" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
               </table>
@@ -1025,31 +1026,54 @@ const Sync = {
   // Senarai murid dikongsi semua guru: terima tatasusunan, atau objek lama {students:[...]}
   parseStudents(str) {
     if (!str) return null;
-    try { let x = JSON.parse(str); if (!Array.isArray(x)) x = x && x.students; return Array.isArray(x) ? x : null; } catch (e) { return null; }
+    try {
+      let x = JSON.parse(str);
+      if (x && !Array.isArray(x) && x.by) this._m = { by: String(x.by), at: x.at || '' };   // siapa simpan terakhir
+      if (!Array.isArray(x)) x = x && x.students;
+      return Array.isArray(x) ? x : null;
+    } catch (e) { return null; }
   },
   // Bina data tempatan: data peribadi akaun (kehadiran, PPM, tetapan) + senarai murid dikongsi
   localFrom(r, fallback) {
     let d = null; try { d = r.data ? JSON.parse(r.data) : null; } catch (e) { d = null; }
     const st = this.parseStudents(r.students);
     if (!d) d = fallback || { students: [], attendance: {}, settings: { waktuMasuk: '07:30' } };
-    if (st) d.students = st; else if (!Array.isArray(d.students)) d.students = [];
-    return { json: JSON.stringify(d), patch: { lastSync: r.data ? r.ts : 0, dirty: !r.data, sts: st ? r.sts : 0, sh: st ? this.hash(JSON.stringify(st)) : null } };
+    if (st) { d.students = st; this.remember(st); } else if (!Array.isArray(d.students)) d.students = [];
+    const patch = { lastSync: r.data ? r.ts : 0, dirty: !r.data, sts: st ? r.sts : 0, sh: st ? this.hash(JSON.stringify(st)) : null };
+    if (st && this._m) patch.meta = this._m;
+    return { json: JSON.stringify(d), patch };
+  },
+  // ---- Jejak siapa mengubah setiap murid ----
+  HK: 'ppki_stuh_v1',
+  sig(s) { const c = Object.assign({}, s); delete c.updBy; delete c.updAt; return this.hash(JSON.stringify(c)); },
+  hmap() { try { return JSON.parse(localStorage.getItem(this.HK)) || null; } catch (e) { return null; } },
+  remember(arr) { const m = {}; (arr || []).forEach(x => { m[x.id] = this.sig(x); }); try { localStorage.setItem(this.HK, JSON.stringify(m)); } catch (e) { /* abaikan */ } },
+  // Tanda murid yang berubah sejak disegerak kali terakhir dengan nama guru + masa
+  stamp() {
+    const arr = (Store.data && Store.data.students) || [], m = this.hmap();
+    if (!m) { this.remember(arr); return; }
+    const now = new Date().toISOString(); let ch = false;
+    arr.forEach(x => { if (m[x.id] !== this.sig(x)) { x.updBy = Auth.user || '-'; x.updAt = now; ch = true; } });
+    if (ch) { try { localStorage.setItem(APP.KEY_DATA, JSON.stringify(Store.data)); } catch (e) { /* abaikan */ } }
   },
   // Murid = dikongsi semua akaun. Selebihnya (kehadiran, PPM, tetapan) = peribadi setiap akaun.
   async push(force, forceStudents) {
     const c = this.cfg(); if (!this.ready()) return;
     try {
+      this.stamp();
       const d = Store.data || {};
       const rest = Object.assign({}, d); delete rest.students;
       const stStr = JSON.stringify(d.students || []), h = this.hash(stStr);
       const sendS = !!forceStudents || (c.sh != null && c.sh !== h);   // hantar murid hanya jika berubah
       const pl = { action: 'save', base: c.lastSync || 0, force: !!force, data: JSON.stringify(rest) };
-      if (sendS) { pl.students = stStr; pl.baseS = c.sts || 0; }
+      const meta = { by: Auth.user || '-', at: new Date().toISOString() };
+      if (sendS) { pl.students = JSON.stringify({ students: d.students || [], by: meta.by, at: meta.at }); pl.baseS = c.sts || 0; }
       const r = await this.call(pl);
       if (r.ok) {
         const patch = { lastSync: r.ts, dirty: false };
-        if (sendS) { patch.sts = r.sts; patch.sh = h; }
-        this.set(patch); this.say('✔ Disimpan ke Google Sheets • ' + nowTime()); return;
+        if (sendS) { patch.sts = r.sts; patch.sh = h; patch.meta = meta; this.remember(d.students); }
+        this.set(patch);
+        if (sendS && typeof Students !== 'undefined' && Router.cur === 'murid') Students.render(); this.say('✔ Disimpan ke Google Sheets • ' + nowTime()); return;
       }
       if (r.conflictS) {
         if (confirm('Rekod murid dikongsi semua guru. Ada guru lain yang baru mengemas kini senarai murid.\n\nOK = guna senarai murid terkini daripada Google Sheets (perubahan murid di peranti ini diganti) — DISYORKAN\nBatal = timpa senarai murid semua guru dengan data peranti ini (perubahan guru lain akan HILANG)')) await this.takeShared();
@@ -1067,7 +1091,8 @@ const Sync = {
       if (!r.ok) { this.say('⚠️ ' + (r.error || 'Gagal sync')); return; }
       const st = this.parseStudents(r.students); if (!st) return;
       localStorage.setItem(APP.KEY_DATA, JSON.stringify(Object.assign({}, Store.data, { students: st })));
-      this.set({ sts: r.sts, sh: this.hash(JSON.stringify(st)) });
+      this.remember(st);
+      this.set({ sts: r.sts, sh: this.hash(JSON.stringify(st)), meta: this._m || undefined });
       location.reload();
     } catch (e) { this.say('⚠️ Tiada internet / URL salah.'); }
   },
@@ -1092,7 +1117,7 @@ const Sync = {
         localStorage.setItem(APP.KEY_DATA, JSON.stringify(d));
         const patch = { dirty: applyP ? false : dirty };
         if (applyP) patch.lastSync = r.ts;
-        if (applyS) { patch.sts = r.sts; patch.sh = this.hash(JSON.stringify(st)); }
+        if (applyS) { patch.sts = r.sts; patch.sh = this.hash(JSON.stringify(st)); if (this._m) patch.meta = this._m; this.remember(st); }
         this.set(patch);
         location.reload();
         return;
@@ -1121,6 +1146,43 @@ const Sync = {
     document.getElementById('btnSyncNow').addEventListener('click', async () => { this.say('Menyegerak…'); await this.pull(); });
     document.addEventListener('visibilitychange', () => { if (!document.hidden && Auth.user) this.pull(); });
   }
+};
+
+/* ---------- 4c. PRESENCE: siapa sedang mengedit murid ---------- */
+// PENTING: tukar ENABLED kepada true HANYA selepas kod Apps Script (action 'presence') ditampal & di-deploy semula.
+const Presence = {
+  ENABLED: false,
+  list: [], target: null, _hb: null, _poll: null, off: false,
+  async call(p) {
+    if (!this.ENABLED || this.off || !Sync.ready()) return null;
+    try {
+      const r = await Sync.call(Object.assign({ action: 'presence', user: Auth.user }, p));
+      if (!r || !r.ok || !Array.isArray(r.list)) { this.off = true; return null; }   // backend belum sokong
+      return r;
+    } catch (e) { return null; }
+  },
+  apply(r) { this.list = r.list.filter(x => x.email !== Auth.email); if (Router.cur === 'murid' && !UI.hasModal()) Students.render(); },
+  others(id) { return this.list.filter(x => x.target === id); },
+  async set(id) {
+    this.target = id;
+    clearInterval(this._hb);
+    const r = await this.call({ op: 'set', target: id }); if (r) this.apply(r);
+    this._hb = setInterval(() => { if (this.target) this.call({ op: 'set', target: this.target }); }, 20000);
+  },
+  async clear() {
+    if (!this.target) return;
+    this.target = null; clearInterval(this._hb);
+    const r = await this.call({ op: 'clear' }); if (r) this.apply(r);
+  },
+  start() {
+    if (!this.ENABLED) return;
+    clearInterval(this._poll);
+    this._poll = setInterval(async () => {
+      if (document.hidden || !Auth.user || Router.cur !== 'murid') return;
+      const r = await this.call({ op: 'list' }); if (r) this.apply(r);
+    }, 15000);
+  },
+  stop() { clearInterval(this._poll); clearInterval(this._hb); this.target = null; this.list = []; }
 };
 
 /* ---------- 5. LOG AKTIVITI ---------- */
@@ -1167,10 +1229,11 @@ const Auth = {
     const m = $('#accEmail'); if (m) m.textContent = email;
     App.enter();
     Sync.start();
+    Presence.start();
   },
   async logout() {
     if (this.user) Log.add('Log keluar', this.email || '');
-    Sync.stop();
+    Sync.stop(); Presence.clear(); Presence.stop();
     try { if (Sync.cfg().dirty) await Sync.push(); } catch (e) { /* abaikan */ }
     try { localStorage.removeItem(this.SESS); } catch (e) { /* abaikan */ }
     if (UI.hasModal()) UI.closeModal();
@@ -1548,6 +1611,7 @@ const Students = {
     $('#kelasList').innerHTML = ks.map(k => `<option value="${esc(k)}"></option>`).join('');
   },
   resetForm() {
+    Presence.clear();
     this.editingId = null;
     this.pendingFoto = null;
     $('#stuForm').reset();
@@ -1594,6 +1658,8 @@ const Students = {
     if (!this.editingId) $('#sId').value = this.genId();
     const list = this.filter($('#stuSearch').value, $('#stuKelas').value);
     $('#stuCount').textContent = `(${list.length} / ${Store.data.students.length})`;
+    const mt = Sync.cfg().meta;
+    $('#stuMeta').textContent = mt && mt.by ? `🕒 Senarai murid dikemas kini terakhir oleh ${mt.by}${mt.at ? ' • ' + fmtStamp(mt.at) : ''}` : '';
     $('#stuBody').innerHTML = list.length ? list.map(s => `
       <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/40 transition">
         <td class="td"><div class="flex items-center gap-3"><button type="button" data-act="foto" data-id="${esc(s.id)}" title="Klik untuk tukar foto" class="relative shrink-0 rounded-full hover:ring-2 hover:ring-blue-500 transition">${avatar(s.name, undefined, s.foto)}<span class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] flex items-center justify-center shadow">📷</span></button><div><div class="font-semibold">${esc(s.name)}</div><div class="text-xs font-mono text-slate-500">${esc(s.id)}</div></div></div></td>
@@ -1601,13 +1667,14 @@ const Students = {
         <td class="td whitespace-nowrap">${esc(s.kelas)}</td>
         <td class="td">${hasVal(s.penjaga) ? esc(s.penjaga) : dash}</td>
         <td class="td whitespace-nowrap">${hasVal(s.telefon) ? `<a class="text-blue-600 dark:text-blue-400 hover:underline" href="tel:${esc(String(s.telefon).replace(/[^0-9+]/g, ''))}">${esc(s.telefon)}</a>` : dash}</td>
+        <td class="td whitespace-nowrap text-xs">${s.updBy ? `<div class="font-semibold">${esc(s.updBy)}</div><div class="text-[11px] text-slate-500 dark:text-slate-400">${esc(fmtStamp(s.updAt))}</div>` : dash}${Presence.others(s.id).map(o => `<div class="mt-1 inline-block px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 text-[11px] font-semibold">✏️ ${esc(o.user || o.email)} sedang edit</div>`).join('')}</td>
         <td class="td text-right whitespace-nowrap">
           <button class="btn-ghost !py-1 text-xs" data-act="qr" data-id="${esc(s.id)}" title="Kod QR">🔳</button>
           <button class="btn-ghost !py-1 text-xs" data-act="edit" data-id="${esc(s.id)}">✏️ Edit</button>
           <button class="btn-red !py-1 text-xs" data-act="del" data-id="${esc(s.id)}">🗑️</button>
         </td>
       </tr>`).join('')
-      : `<tr><td colspan="6" class="td text-center text-slate-500 py-10">${Store.data.students.length ? 'Tiada murid sepadan dengan carian.' : 'Belum ada murid. Tambah melalui borang atau import Excel.'}</td></tr>`;
+      : `<tr><td colspan="7" class="td text-center text-slate-500 py-10">${Store.data.students.length ? 'Tiada murid sepadan dengan carian.' : 'Belum ada murid. Tambah melalui borang atau import Excel.'}</td></tr>`;
   },
   validPhone(t) { return /^[0-9+\-\s()]+$/.test(t) && t.replace(/\D/g, '').length >= 9 && t.replace(/\D/g, '').length <= 13; },
   submit(e) {
@@ -1645,6 +1712,13 @@ const Students = {
   startEdit(id) {
     const s = this.get(id); if (!s) return;
     this.editingId = id;
+    if (s.updBy && s.updBy !== Auth.user && s.updAt && Date.now() - new Date(s.updAt) < 10 * 60000) {
+      const mnt = Math.max(1, Math.round((Date.now() - new Date(s.updAt)) / 60000));
+      UI.toast(`⚠️ ${s.updBy} baru mengemas kini murid ini ${mnt} minit lalu. Semak dahulu sebelum ubah.`, 'warn', 6000);
+    }
+    const ot = Presence.others(id);
+    if (ot.length) UI.toast(`⚠️ ${ot.map(o => o.user || o.email).join(', ')} sedang mengedit murid ini. Perubahan boleh bertindih.`, 'warn', 6000);
+    Presence.set(id);
     $('#sName').value = s.name; $('#sId').value = s.id; $('#sKelas').value = s.kelas;
     $('#sPenjaga').value = hasVal(s.penjaga) ? s.penjaga : ''; $('#sTelefon').value = hasVal(s.telefon) ? s.telefon : ''; $('#sJantina').value = s.jantina || '';
     $('#stuFormTitle').textContent = '✏️ Edit Murid: ' + s.id;
