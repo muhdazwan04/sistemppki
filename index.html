@@ -175,14 +175,34 @@
       <!-- Borang lupa PIN: pautan tetapan semula dihantar ke emel pengguna -->
       <form id="lupaForm" class="hidden space-y-3" autocomplete="off">
         <h2 class="text-base font-bold text-center">Lupa PIN</h2>
-        <p class="text-xs text-center text-slate-500 dark:text-slate-400">Masukkan emel akaun anda. Pautan untuk menetapkan PIN baharu akan dihantar ke emel tersebut.</p>
+        <p class="text-xs text-center text-slate-500 dark:text-slate-400">Masukkan emel akaun anda. PIN sementara akan dihantar ke emel tersebut. Selepas log masuk, anda perlu menetapkan PIN baharu.</p>
         <div>
           <label class="label" for="lpEmel">Emel *</label>
           <input id="lpEmel" class="input" type="email" inputmode="email" autocapitalize="none" spellcheck="false" placeholder="cikgu@gmail.com">
         </div>
         <p id="lpMsg" class="hidden text-sm font-semibold"></p>
-        <button type="submit" class="btn-primary w-full">Hantar Pautan</button>
+        <button type="submit" class="btn-primary w-full">Hantar PIN Sementara</button>
         <button type="button" id="btnHideLupa" class="btn-ghost w-full">← Kembali ke Log Masuk</button>
+      </form>
+
+      <!-- Borang tukar PIN wajib (selepas log masuk dengan PIN sementara) -->
+      <form id="tukarForm" class="hidden space-y-3" autocomplete="off">
+        <h2 class="text-base font-bold text-center">Tetapkan PIN Baharu</h2>
+        <p class="text-xs text-center text-slate-500 dark:text-slate-400">Anda log masuk dengan PIN sementara. Sila tetapkan PIN baharu untuk meneruskan.</p>
+        <div>
+          <label class="label" for="tkPin">PIN Baharu * (4-12 aksara)</label>
+          <div class="relative">
+            <input id="tkPin" class="input pr-12" type="password" maxlength="12" autocomplete="new-password">
+            <button type="button" data-eye="tkPin" class="absolute right-2 top-1/2 -translate-y-1/2 text-lg" title="Tunjuk / sembunyi">👁</button>
+          </div>
+        </div>
+        <div>
+          <label class="label" for="tkPin2">Sahkan PIN Baharu *</label>
+          <input id="tkPin2" class="input" type="password" maxlength="12" autocomplete="new-password">
+        </div>
+        <p id="tkMsg" class="hidden text-sm font-semibold text-red-600 dark:text-red-400"></p>
+        <button type="submit" class="btn-primary w-full">Simpan PIN & Log Masuk</button>
+        <button type="button" id="btnBatalTukar" class="btn-ghost w-full">Batal</button>
       </form>
 
       <!-- Borang pendaftaran kali pertama (kelulusan melalui emel admin) -->
@@ -1079,7 +1099,7 @@ const Auth = {
     this.user = null; this.email = null;
     document.body.classList.remove('authed');
     $('#loginScreen').classList.remove('hidden');
-    $('#regForm').classList.add('hidden'); $('#lupaForm').classList.add('hidden'); $('#loginForm').classList.remove('hidden');
+    $('#regForm').classList.add('hidden'); $('#lupaForm').classList.add('hidden'); $('#tukarForm').classList.add('hidden'); $('#loginForm').classList.remove('hidden'); this._tk = null;
     $('#lgSub').textContent = 'Log masuk dengan emel & PIN';
     $('#lgUser').value = Sync.cfg().email || ''; $('#lgPass').value = ''; $('#lgPass').type = 'password'; this.msg('lgErr', '');
     setTimeout(() => ($('#lgUser').value ? $('#lgPass') : $('#lgUser')).focus(), 50);
@@ -1124,6 +1144,7 @@ const Auth = {
         return this.msg('lgErr', 'Tiada sambungan internet. Log masuk luar talian hanya untuk akaun yang pernah log masuk di peranti ini.');
       }
       if (!r.ok) return this.msg('lgErr', r.error || 'Gagal log masuk.');
+      if (r.mustChange) { this.showTukar(email, pin); return; }   // PIN sementara: wajib tukar
 
       const owner = String(c.owner || c.email || '').toLowerCase();   // pemilik data yang kini ada dalam peranti
       const patch = { email, pin, name: r.nama || email, owner: email };
@@ -1152,7 +1173,7 @@ const Auth = {
   // ---- Pendaftaran kali pertama: permohonan dihantar ke Google Sheets, pentadbir lulus melalui emel ----
   showReg(on) {
     $('#loginForm').classList.toggle('hidden', on);
-    $('#lupaForm').classList.add('hidden');
+    $('#lupaForm').classList.add('hidden'); $('#tukarForm').classList.add('hidden');
     $('#regForm').classList.toggle('hidden', !on);
     this.regMsg('');
     if (on) { $('#regForm').reset(); $('#rgPin').type = 'password'; setTimeout(() => $('#rgNama').focus(), 50); }
@@ -1187,7 +1208,7 @@ const Auth = {
   // ---- Lupa PIN: pautan tetapan semula dihantar ke emel pengguna ----
   showLupa(on) {
     $('#loginForm').classList.toggle('hidden', on);
-    $('#regForm').classList.add('hidden');
+    $('#regForm').classList.add('hidden'); $('#tukarForm').classList.add('hidden');
     $('#lupaForm').classList.toggle('hidden', !on);
     this.lupaMsg('');
     $('#lgSub').textContent = on ? 'Tetapan semula PIN' : 'Log masuk dengan emel & PIN';
@@ -1210,10 +1231,47 @@ const Auth = {
       try { r = await Sync.call({ action: 'lupa' }, { email, pin: '-' }); }
       catch (e) { return this.lupaMsg('Tiada sambungan internet atau URL Apps Script salah. Cuba lagi.'); }
       if (!r.ok) return this.lupaMsg(r.error || 'Permintaan gagal.');
-      this.lupaMsg(r.msg || 'Jika emel itu berdaftar, pautan tetapan semula PIN telah dihantar.', true);
-    } finally { btn.disabled = false; btn.textContent = 'Hantar Pautan'; }
+      this.lupaMsg(r.msg || 'Jika emel itu berdaftar, PIN sementara telah dihantar ke emel.', true);
+    } finally { btn.disabled = false; btn.textContent = 'Hantar PIN Sementara'; }
+  },
+  // ---- Tukar PIN wajib selepas log masuk dengan PIN sementara ----
+  showTukar(email, pinSementara) {
+    this._tk = { email, pin: pinSementara };
+    $('#loginForm').classList.add('hidden'); $('#regForm').classList.add('hidden'); $('#lupaForm').classList.add('hidden');
+    $('#tukarForm').classList.remove('hidden'); $('#tukarForm').reset();
+    $('#tkPin').type = 'password'; this.tkMsg('');
+    $('#lgSub').textContent = 'Tukar PIN sementara';
+    setTimeout(() => $('#tkPin').focus(), 50);
+  },
+  tkMsg(text) { const e = $('#tkMsg'); if (!e) return; e.textContent = text || ''; e.classList.toggle('hidden', !text); },
+  async submitTukar() {
+    if (!this._tk) return this.showLogin();
+    const a = $('#tkPin').value.trim(), b = $('#tkPin2').value.trim();
+    if (a.length < 4 || a.length > 12) return this.tkMsg('PIN mesti 4 hingga 12 aksara.');
+    if (a !== b) return this.tkMsg('PIN dan pengesahan PIN tidak sama.');
+    if (a === this._tk.pin) return this.tkMsg('PIN baharu mesti berbeza daripada PIN sementara.');
+    const btn = $('#tukarForm button[type=submit]');
+    btn.disabled = true; btn.textContent = 'Menyimpan…'; this.tkMsg('');
+    let ok = false;
+    try {
+      let r;
+      try { r = await Sync.call({ action: 'tukarpin', newpin: a }, { email: this._tk.email, pin: this._tk.pin }); }
+      catch (e) { return this.tkMsg('Tiada sambungan internet. Cuba lagi.'); }
+      if (!r.ok) return this.tkMsg(r.error || 'Gagal menukar PIN.');
+      ok = true;
+      const email = this._tk.email;
+      this._tk = null;
+      $('#tukarForm').classList.add('hidden'); $('#loginForm').classList.remove('hidden');
+      $('#lgUser').value = email; $('#lgPass').value = a;
+      await this.submitLogin();   // log masuk automatik dengan PIN baharu
+    } finally {
+      btn.disabled = false; btn.textContent = 'Simpan PIN & Log Masuk';
+      if (ok) $('#lgSub').textContent = 'Log masuk dengan emel & PIN';
+    }
   },
   bind() {
+    $('#tukarForm').addEventListener('submit', e => { e.preventDefault(); this.submitTukar(); });
+    $('#btnBatalTukar').addEventListener('click', () => this.showLogin());
     $('#lupaForm').addEventListener('submit', e => { e.preventDefault(); this.submitLupa(); });
     $('#btnShowLupa').addEventListener('click', () => this.showLupa(true));
     $('#btnHideLupa').addEventListener('click', () => this.showLupa(false));
