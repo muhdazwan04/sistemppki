@@ -1004,8 +1004,8 @@ const Store = {
 /* ---------- 4b. SYNC GOOGLE SHEETS ---------- */
 const Sync = {
   KEY: 'ppki_sync_v1', _t: null, _poll: null,
-  DEFAULT_URL: 'https://script.google.com/macros/s/AKfycbwYMnab9sZvcpAXgr8as5EbSdaKlGchRTbKb05JKftgcGGM1C-MjYimhRHEU-UIb9I_2w/exec',
-  cfg() { let c = {}; try { c = JSON.parse(localStorage.getItem(this.KEY)) || {}; } catch (e) { /* abaikan */ } if (!c.url || ['AKfycbw8vuqGLh0MFISgVpZI2nmoFXfbCHxDHqGJwXxnH653lOd_2rKwpHNW8_AjIK-agFD1kQ','AKfycbzZN_4VVSQf93K6ju2L09zEcbojyMAMLeUyWFma2CKLoNz0pxjB-IEawY17HD0IMRDdmw','AKfycbzQ-oNC7MlsyB0q4RtPf4bjz3-2fEyl6uhRorcgQtDkorKO6TwjiPoLoKT59ykp3ajJsg','AKfycbwuayRAfyv2v39rvqX2KlFglryN_8SP9FtSoTPLRnesgCEkPCZ2TeshTcE1pmiVbShkuw'].some(k => c.url.indexOf(k) >= 0)) c.url = this.DEFAULT_URL; return c; },
+  DEFAULT_URL: 'https://script.google.com/macros/s/AKfycbz4Gw2kRpKTAaqBNhGIjWacZkHi4lE1BwfQ0OmDoGRPCBS9oUm3HN2Nc6H3zVs6wYWt/exec',
+  cfg() { let c = {}; try { c = JSON.parse(localStorage.getItem(this.KEY)) || {}; } catch (e) { /* abaikan */ } if (!c.url || ['AKfycbwYMnab9sZvcpAXgr8as5EbSdaKlGchRTbKb05JKftgcGGM1C-MjYimhRHEU-UIb9I_2w','AKfycbw8vuqGLh0MFISgVpZI2nmoFXfbCHxDHqGJwXxnH653lOd_2rKwpHNW8_AjIK-agFD1kQ','AKfycbzZN_4VVSQf93K6ju2L09zEcbojyMAMLeUyWFma2CKLoNz0pxjB-IEawY17HD0IMRDdmw','AKfycbzQ-oNC7MlsyB0q4RtPf4bjz3-2fEyl6uhRorcgQtDkorKO6TwjiPoLoKT59ykp3ajJsg','AKfycbwuayRAfyv2v39rvqX2KlFglryN_8SP9FtSoTPLRnesgCEkPCZ2TeshTcE1pmiVbShkuw'].some(k => c.url.indexOf(k) >= 0)) c.url = this.DEFAULT_URL; return c; },
   ready() { const c = this.cfg(); return !!(c.url && c.email && c.pin); },
   set(o) { try { localStorage.setItem(this.KEY, JSON.stringify(Object.assign(this.cfg(), o))); } catch (e) { /* abaikan */ } },
   say(m) { const el = document.getElementById('syncStatus'); if (el) el.textContent = m; },
@@ -1021,29 +1021,83 @@ const Sync = {
     clearTimeout(this._t);
     this._t = setTimeout(() => this.push(), 3000);
   },
-  async push(force) {
+  hash(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; },
+  // Senarai murid dikongsi semua guru: terima tatasusunan, atau objek lama {students:[...]}
+  parseStudents(str) {
+    if (!str) return null;
+    try { let x = JSON.parse(str); if (!Array.isArray(x)) x = x && x.students; return Array.isArray(x) ? x : null; } catch (e) { return null; }
+  },
+  // Bina data tempatan: data peribadi akaun (kehadiran, PPM, tetapan) + senarai murid dikongsi
+  localFrom(r, fallback) {
+    let d = null; try { d = r.data ? JSON.parse(r.data) : null; } catch (e) { d = null; }
+    const st = this.parseStudents(r.students);
+    if (!d) d = fallback || { students: [], attendance: {}, settings: { waktuMasuk: '07:30' } };
+    if (st) d.students = st; else if (!Array.isArray(d.students)) d.students = [];
+    return { json: JSON.stringify(d), patch: { lastSync: r.data ? r.ts : 0, dirty: !r.data, sts: st ? r.sts : 0, sh: st ? this.hash(JSON.stringify(st)) : null } };
+  },
+  // Murid = dikongsi semua akaun. Selebihnya (kehadiran, PPM, tetapan) = peribadi setiap akaun.
+  async push(force, forceStudents) {
     const c = this.cfg(); if (!this.ready()) return;
     try {
-      const r = await this.call({ action: 'save', base: c.lastSync || 0, force: !!force, data: JSON.stringify(Store.data) });
-      if (r.ok) { this.set({ lastSync: r.ts, dirty: false }); this.say('✔ Disimpan ke Google Sheets • ' + nowTime()); return; }
-      if (r.conflict) {
-        if (confirm('Rekod murid dikongsi semua guru. Ada guru lain yang baru mengemas kini data di Google Sheets.\n\nOK = guna data terkini daripada Google Sheets (perubahan di peranti ini diganti) — DISYORKAN\nBatal = timpa data semua guru dengan data peranti ini (perubahan guru lain akan HILANG)')) await this.pull(true);
+      const d = Store.data || {};
+      const rest = Object.assign({}, d); delete rest.students;
+      const stStr = JSON.stringify(d.students || []), h = this.hash(stStr);
+      const sendS = !!forceStudents || (c.sh != null && c.sh !== h);   // hantar murid hanya jika berubah
+      const pl = { action: 'save', base: c.lastSync || 0, force: !!force, data: JSON.stringify(rest) };
+      if (sendS) { pl.students = stStr; pl.baseS = c.sts || 0; }
+      const r = await this.call(pl);
+      if (r.ok) {
+        const patch = { lastSync: r.ts, dirty: false };
+        if (sendS) { patch.sts = r.sts; patch.sh = h; }
+        this.set(patch); this.say('✔ Disimpan ke Google Sheets • ' + nowTime()); return;
+      }
+      if (r.conflictS) {
+        if (confirm('Rekod murid dikongsi semua guru. Ada guru lain yang baru mengemas kini senarai murid.\n\nOK = guna senarai murid terkini daripada Google Sheets (perubahan murid di peranti ini diganti) — DISYORKAN\nBatal = timpa senarai murid semua guru dengan data peranti ini (perubahan guru lain akan HILANG)')) await this.takeShared();
+        else await this.push(true, true);
+      } else if (r.conflict) {
+        if (confirm('Data akaun ini di Google Sheets lebih baharu (dikemas kini dari peranti lain).\n\nOK = guna data Google Sheets (perubahan di peranti ini diganti)\nBatal = timpa Google Sheets dengan data peranti ini')) await this.pull(true);
         else await this.push(true);
       } else this.say('⚠️ ' + (r.error || 'Gagal sync'));
     } catch (e) { this.say('⚠️ Tiada internet / URL salah. Data selamat dalam peranti, akan cuba lagi.'); }
+  },
+  // Ambil senarai murid terkini sahaja (data peribadi tidak diganggu)
+  async takeShared() {
+    try {
+      const r = await this.call({ action: 'load' });
+      if (!r.ok) { this.say('⚠️ ' + (r.error || 'Gagal sync')); return; }
+      const st = this.parseStudents(r.students); if (!st) return;
+      localStorage.setItem(APP.KEY_DATA, JSON.stringify(Object.assign({}, Store.data, { students: st })));
+      this.set({ sts: r.sts, sh: this.hash(JSON.stringify(st)) });
+      location.reload();
+    } catch (e) { this.say('⚠️ Tiada internet / URL salah.'); }
   },
   async pull(forceApply) {
     const c = this.cfg(); if (!this.ready()) return;
     try {
       const r = await this.call({ action: 'load' });
       if (!r.ok) { this.say('⚠️ ' + (r.error || 'Gagal sync')); return; }
-      if (!r.data) { await this.push(true); return; }          // akaun ini belum ada data di Sheet: naikkan data peranti
-      if (r.ts > (c.lastSync || 0)) {
-        if (!forceApply && c.dirty) { await this.push(); return; }   // ada perubahan belum dihantar → semak konflik
-        localStorage.setItem(APP.KEY_DATA, r.data);
-        this.set({ lastSync: r.ts, dirty: false });
+      const st = this.parseStudents(r.students);
+      if (!r.data && !st) { await this.push(true, true); return; }     // belum ada apa-apa di Sheet: naikkan data peranti
+      const lh = this.hash(JSON.stringify((Store.data && Store.data.students) || []));
+      const sChanged = c.sh != null && c.sh !== lh;                   // murid di peranti ini ada perubahan belum dihantar
+      const needP = !!r.data && r.ts > (c.lastSync || 0);
+      const needS = !!st && r.sts > (c.sts || 0);
+      const dirty = !!c.dirty || !r.data;
+      const applyP = needP && (!dirty || forceApply);
+      const applyS = needS && (!sChanged || forceApply);
+      if (applyP || applyS) {
+        let d = Store.data;
+        if (applyP) { d = JSON.parse(r.data); d.students = (Store.data && Store.data.students) || []; }
+        if (applyS) d.students = st;
+        localStorage.setItem(APP.KEY_DATA, JSON.stringify(d));
+        const patch = { dirty: applyP ? false : dirty };
+        if (applyP) patch.lastSync = r.ts;
+        if (applyS) { patch.sts = r.sts; patch.sh = this.hash(JSON.stringify(st)); }
+        this.set(patch);
         location.reload();
-      } else if (c.dirty) await this.push();
+        return;
+      }
+      if (!st || dirty || (needS && sChanged)) await this.push(false, !st);   // semak konflik / naikkan perubahan
       else this.say('✔ Sudah terkini • ' + nowTime());
     } catch (e) { this.say('⚠️ Tiada internet / URL salah.'); }
   },
@@ -1090,7 +1144,7 @@ const Log = {
 };
 
 /* ---------- 6. LOG MASUK (emel + PIN, disemak di Google Sheets) ---------- */
-// Semua akaun berkongsi satu set data murid yang sama di Google Sheets.
+// Senarai murid dikongsi semua akaun. Kehadiran, tetapan & PPM adalah peribadi setiap akaun.
 const Auth = {
   user: null, email: null,
   SESS: 'ppki_sess_v3',
@@ -1152,16 +1206,16 @@ const Auth = {
         // Akaun lain pernah guna peranti ini: buang data tempatan supaya TIDAK bercampur / terhantar ke akaun ini
         if (c.dirty && !confirm('Peranti ini ada perubahan akaun ' + owner + ' yang belum disimpan ke Google Sheets.\nTeruskan dan buang perubahan itu?')) return;
         localStorage.removeItem(APP.KEY_LOG);
-        if (r.data) { localStorage.setItem(APP.KEY_DATA, r.data); patch.lastSync = r.ts; }
-        else { localStorage.setItem(APP.KEY_DATA, JSON.stringify({ students: [], attendance: {}, settings: { waktuMasuk: '07:30' } })); patch.lastSync = 0; }
-        patch.dirty = !r.data;
+        const L = Sync.localFrom(r, null);   // data peribadi akaun ini + murid dikongsi
+        localStorage.setItem(APP.KEY_DATA, L.json); Object.assign(patch, L.patch);
       } else if (!owner) {
         // Peranti belum dimiliki mana-mana akaun
-        if (r.data) { localStorage.setItem(APP.KEY_DATA, r.data); patch.lastSync = r.ts; patch.dirty = false; }
-        else if (!confirm('Akaun ini belum ada data di Google Sheets.\n\nOK = guna data yang sedia ada dalam peranti ini\nBatal = mula dengan data kosong')) {
-          localStorage.setItem(APP.KEY_DATA, JSON.stringify({ students: [], attendance: {}, settings: { waktuMasuk: '07:30' } }));
-          patch.lastSync = 0; patch.dirty = true;
-        } else { patch.lastSync = 0; patch.dirty = true; }
+        let fb = null;
+        if (!r.data && confirm('Akaun ini belum ada data kehadiran/PPM di Google Sheets.\n(Senarai murid dikongsi diambil automatik.)\n\nOK = guna data yang sedia ada dalam peranti ini\nBatal = mula dengan data kosong')) {
+          try { fb = JSON.parse(localStorage.getItem(APP.KEY_DATA)); } catch (e) { fb = null; }
+        }
+        const L = Sync.localFrom(r, fb);
+        localStorage.setItem(APP.KEY_DATA, L.json); Object.assign(patch, L.patch);
       }
       // pemilik sama: biarkan Sync.pull() (selepas masuk) menyelaraskan data & konflik
       Sync.set(patch);
