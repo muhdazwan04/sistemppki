@@ -984,8 +984,8 @@ const Store = {
 /* ---------- 4b. SYNC GOOGLE SHEETS ---------- */
 const Sync = {
   KEY: 'ppki_sync_v1', _t: null, _poll: null,
-  DEFAULT_URL: 'https://script.google.com/macros/s/AKfycbzQ-oNC7MlsyB0q4RtPf4bjz3-2fEyl6uhRorcgQtDkorKO6TwjiPoLoKT59ykp3ajJsg/exec',
-  cfg() { let c = {}; try { c = JSON.parse(localStorage.getItem(this.KEY)) || {}; } catch (e) { /* abaikan */ } if (!c.url || c.url.indexOf('AKfycbzZN_4VVSQf93K6ju2L09zEcbojyMAMLeUyWFma2CKLoNz0pxjB-IEawY17HD0IMRDdmw') >= 0) c.url = this.DEFAULT_URL; return c; },
+  DEFAULT_URL: 'https://script.google.com/macros/s/AKfycbw8vuqGLh0MFISgVpZI2nmoFXfbCHxDHqGJwXxnH653lOd_2rKwpHNW8_AjIK-agFD1kQ/exec',
+  cfg() { let c = {}; try { c = JSON.parse(localStorage.getItem(this.KEY)) || {}; } catch (e) { /* abaikan */ } if (!c.url || ['AKfycbzZN_4VVSQf93K6ju2L09zEcbojyMAMLeUyWFma2CKLoNz0pxjB-IEawY17HD0IMRDdmw','AKfycbzQ-oNC7MlsyB0q4RtPf4bjz3-2fEyl6uhRorcgQtDkorKO6TwjiPoLoKT59ykp3ajJsg'].some(k => c.url.indexOf(k) >= 0)) c.url = this.DEFAULT_URL; return c; },
   ready() { const c = this.cfg(); return !!(c.url && c.email && c.pin); },
   set(o) { try { localStorage.setItem(this.KEY, JSON.stringify(Object.assign(this.cfg(), o))); } catch (e) { /* abaikan */ } },
   say(m) { const el = document.getElementById('syncStatus'); if (el) el.textContent = m; },
