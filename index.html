@@ -152,11 +152,11 @@
 
       <form id="loginForm" class="space-y-3" autocomplete="on">
         <div>
-          <label class="label" for="lgUser">Nama pengguna</label>
-          <input id="lgUser" class="input" type="text" autocomplete="username" autocapitalize="none" spellcheck="false">
+          <label class="label" for="lgUser">Emel</label>
+          <input id="lgUser" class="input" type="email" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="cikgu@gmail.com">
         </div>
         <div>
-          <label class="label" for="lgPass">Kata laluan</label>
+          <label class="label" for="lgPass">PIN</label>
           <div class="relative">
             <input id="lgPass" class="input pr-12" type="password" autocomplete="current-password">
             <button type="button" data-eye="lgPass" class="absolute right-2 top-1/2 -translate-y-1/2 text-lg" title="Tunjuk / sembunyi">👁</button>
@@ -164,27 +164,7 @@
         </div>
         <p id="lgErr" class="hidden text-sm text-red-600 dark:text-red-400 font-semibold"></p>
         <button type="submit" class="btn-primary w-full">Log Masuk</button>
-      </form>
-
-      <form id="changeForm" class="hidden space-y-3" autocomplete="off">
-        <div class="rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 p-3 text-sm text-amber-900 dark:text-amber-200">
-          🔐 <b>Kata laluan lalai mesti ditukar.</b> Sila tetapkan kata laluan baharu sebelum meneruskan.
-        </div>
-        <div>
-          <label class="label" for="cgNew">Kata laluan baharu</label>
-          <div class="relative">
-            <input id="cgNew" class="input pr-12" type="password" autocomplete="new-password">
-            <button type="button" data-eye="cgNew" class="absolute right-2 top-1/2 -translate-y-1/2 text-lg" title="Tunjuk / sembunyi">👁</button>
-          </div>
-        </div>
-        <div>
-          <label class="label" for="cgNew2">Sahkan kata laluan baharu</label>
-          <input id="cgNew2" class="input" type="password" autocomplete="new-password">
-        </div>
-        <p class="text-xs text-slate-500 dark:text-slate-400">Sekurang-kurangnya 8 aksara, mengandungi huruf dan nombor, dan tidak boleh sama dengan kata laluan lalai.</p>
-        <p id="cgErr" class="hidden text-sm text-red-600 dark:text-red-400 font-semibold"></p>
-        <button type="submit" class="btn-primary w-full">Simpan &amp; Teruskan</button>
-        <button type="button" id="cgCancel" class="btn-ghost w-full">Batal</button>
+        <p class="text-[11px] text-center text-slate-500 dark:text-slate-400">Log masuk dengan emel yang sama di mana-mana peranti untuk melihat data yang sama.</p>
       </form>
     </div>
   </div>
@@ -604,19 +584,10 @@
           <div class="grid lg:grid-cols-2 gap-4">
 
             <div class="card p-5">
-              <h3 class="font-bold text-lg mb-1">🔐 Akaun &amp; Kata Laluan</h3>
-              <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Pengguna: <b id="accUser">-</b></p>
-              <label class="label" for="accOld">Kata laluan semasa</label>
-              <input id="accOld" type="password" class="input mb-2" autocomplete="current-password">
-              <label class="label" for="accNew">Kata laluan baharu</label>
-              <input id="accNew" type="password" class="input mb-2" autocomplete="new-password">
-              <label class="label" for="accNew2">Sahkan kata laluan baharu</label>
-              <input id="accNew2" type="password" class="input" autocomplete="new-password">
-              <p id="accErr" class="hidden text-sm text-red-600 dark:text-red-400 font-semibold mt-2"></p>
-              <div class="flex gap-2 mt-3">
-                <button id="btnChangePw" class="btn-primary">Tukar Kata Laluan</button>
-                <button id="btnLogout2" class="btn-ghost">⎋ Log Keluar</button>
-              </div>
+              <h3 class="font-bold text-lg mb-1">👤 Akaun</h3>
+              <p class="text-sm text-slate-600 dark:text-slate-300 mb-2">Nama: <b id="accUser">-</b><br>Emel: <b id="accEmail">-</b></p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">Data setiap akaun disimpan berasingan di Google Sheets. PIN diurus oleh admin dalam tab <b>Pengguna</b>.</p>
+              <button id="btnLogout2" class="btn-ghost mt-3">⎋ Log Keluar</button>
             </div>
 
             <div class="card p-5">
@@ -634,15 +605,11 @@
             </div>
 
             <div class="card p-5">
-              <h3 class="font-bold text-lg mb-1">☁️ Sambung Google Sheets</h3>
-              <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Data disimpan automatik ke Google Sheets dan dikongsi antara peranti/guru.</p>
+              <h3 class="font-bold text-lg mb-1">☁️ Segerak Google Sheets</h3>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Data akaun anda disimpan automatik dan dipaparkan sama pada semua peranti yang log masuk dengan emel ini.</p>
               <label class="label" for="syncUrl">URL Web App (Apps Script)</label>
-              <input id="syncUrl" type="url" class="input mb-2" placeholder="https://script.google.com/macros/s/.../exec">
-              <label class="label" for="syncEmail">Emel (mesti ada dalam senarai dibenarkan)</label>
-              <input id="syncEmail" type="email" class="input mb-2" autocomplete="off" placeholder="cikgu@gmail.com">
-              <label class="label" for="syncPin">PIN</label>
-              <input id="syncPin" type="password" class="input mb-3" autocomplete="off">
-              <div class="flex gap-2 mb-2"><button id="btnSyncSave" class="btn-primary">Simpan &amp; Sambung</button><button id="btnSyncNow" class="btn-primary">Segerak sekarang</button></div>
+              <input id="syncUrl" type="url" class="input mb-3" placeholder="https://script.google.com/macros/s/.../exec">
+              <div class="flex gap-2 mb-2"><button id="btnSyncSave" class="btn-ghost">Simpan URL</button><button id="btnSyncNow" class="btn-primary">Segerak sekarang</button></div>
               <p id="syncStatus" class="text-xs text-slate-500 dark:text-slate-400"></p>
             </div>
 
@@ -970,19 +937,20 @@ const Store = {
 
 /* ---------- 4b. SYNC GOOGLE SHEETS ---------- */
 const Sync = {
-  KEY: 'ppki_sync_v1', _t: null,
+  KEY: 'ppki_sync_v1', _t: null, _poll: null,
   DEFAULT_URL: 'https://script.google.com/macros/s/AKfycbzZN_4VVSQf93K6ju2L09zEcbojyMAMLeUyWFma2CKLoNz0pxjB-IEawY17HD0IMRDdmw/exec',
   cfg() { let c = {}; try { c = JSON.parse(localStorage.getItem(this.KEY)) || {}; } catch (e) { /* abaikan */ } if (!c.url) c.url = this.DEFAULT_URL; return c; },
   ready() { const c = this.cfg(); return !!(c.url && c.email && c.pin); },
   set(o) { try { localStorage.setItem(this.KEY, JSON.stringify(Object.assign(this.cfg(), o))); } catch (e) { /* abaikan */ } },
   say(m) { const el = document.getElementById('syncStatus'); if (el) el.textContent = m; },
-  async call(payload) {
-    const c = this.cfg();
+  // creds (pilihan): emel/PIN yang belum disimpan, digunakan semasa log masuk
+  async call(payload, creds) {
+    const c = Object.assign(this.cfg(), creds || {});
     const r = await fetch(c.url, { method: 'POST', body: JSON.stringify(Object.assign({ email: c.email, pin: c.pin }, payload)) });
     return r.json();
   },
   queue() {
-    if (!this.ready()) return;
+    if (!this.ready() || !Auth.user) return;
     this.set({ dirty: true });
     clearTimeout(this._t);
     this._t = setTimeout(() => this.push(), 3000);
@@ -993,7 +961,7 @@ const Sync = {
       const r = await this.call({ action: 'save', base: c.lastSync || 0, force: !!force, data: JSON.stringify(Store.data) });
       if (r.ok) { this.set({ lastSync: r.ts, dirty: false }); this.say('✔ Disimpan ke Google Sheets • ' + nowTime()); return; }
       if (r.conflict) {
-        if (confirm('Data di Google Sheets lebih baharu (dikemas kini oleh pengguna lain).\n\nOK = guna data Google Sheets (perubahan di peranti ini diganti)\nBatal = timpa Google Sheets dengan data peranti ini')) await this.pull(true);
+        if (confirm('Data akaun ini di Google Sheets lebih baharu (dikemas kini dari peranti lain).\n\nOK = guna data Google Sheets (perubahan di peranti ini diganti)\nBatal = timpa Google Sheets dengan data peranti ini')) await this.pull(true);
         else await this.push(true);
       } else this.say('⚠️ ' + (r.error || 'Gagal sync'));
     } catch (e) { this.say('⚠️ Tiada internet / URL salah. Data selamat dalam peranti, akan cuba lagi.'); }
@@ -1003,7 +971,7 @@ const Sync = {
     try {
       const r = await this.call({ action: 'load' });
       if (!r.ok) { this.say('⚠️ ' + (r.error || 'Gagal sync')); return; }
-      if (!r.data) { await this.push(true); return; }          // Sheet kosong: naikkan data peranti
+      if (!r.data) { await this.push(true); return; }          // akaun ini belum ada data di Sheet: naikkan data peranti
       if (r.ts > (c.lastSync || 0)) {
         if (!forceApply && c.dirty) { await this.push(); return; }   // ada perubahan belum dihantar → semak konflik
         localStorage.setItem(APP.KEY_DATA, r.data);
@@ -1013,18 +981,25 @@ const Sync = {
       else this.say('✔ Sudah terkini • ' + nowTime());
     } catch (e) { this.say('⚠️ Tiada internet / URL salah.'); }
   },
-  bindUI() {
-    const c = this.cfg(), u = document.getElementById('syncUrl'), k = document.getElementById('syncPin'), em = document.getElementById('syncEmail');
-    if (!u) return;
-    u.value = c.url || ''; k.value = c.pin || ''; em.value = c.email || '';
-    this.say(this.ready() ? 'Sync aktif.' : 'Isi emel dan PIN untuk menyambung.');
-    document.getElementById('btnSyncSave').addEventListener('click', async () => {
-      this.set({ url: u.value.trim(), email: em.value.trim(), pin: k.value.trim(), lastSync: 0, dirty: false });
-      this.say('Menyambung…'); await this.pull();
-    });
-    document.getElementById('btnSyncNow').addEventListener('click', async () => { this.say('Menyegerak…'); await this.pull(); });
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) this.pull(); });
+  // Dipanggil selepas log masuk: segerak sekarang + semak perubahan dari peranti lain setiap 60 saat
+  start() {
     this.pull();
+    clearInterval(this._poll);
+    this._poll = setInterval(() => {
+      if (document.hidden || !Auth.user) return;
+      if ((typeof Att !== 'undefined' && Att.typing()) || UI.hasModal()) return;   // jangan ganggu semasa menaip
+      this.pull();
+    }, 60000);
+  },
+  stop() { clearInterval(this._poll); clearTimeout(this._t); },
+  bindUI() {
+    const u = document.getElementById('syncUrl');
+    if (!u) return;
+    u.value = this.cfg().url || '';
+    this.say(this.ready() ? 'Sync aktif.' : 'Log masuk untuk mula menyegerak.');
+    document.getElementById('btnSyncSave').addEventListener('click', () => { this.set({ url: u.value.trim() || this.DEFAULT_URL }); this.say('URL disimpan.'); });
+    document.getElementById('btnSyncNow').addEventListener('click', async () => { this.say('Menyegerak…'); await this.pull(); });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && Auth.user) this.pull(); });
   }
 };
 
@@ -1048,146 +1023,89 @@ const Log = {
   }
 };
 
-/* ---------- 6. LOG MASUK & KATA LALUAN ---------- */
-// Pintu masuk di sisi pelayar sahaja (fail HTML tanpa pelayan): menghalang paparan biasa, bukan penyulitan data.
+/* ---------- 6. LOG MASUK (emel + PIN, disemak di Google Sheets) ---------- */
+// Setiap emel ada data sendiri di Google Sheets. Log masuk emel yang sama di peranti lain = data yang sama.
 const Auth = {
-  user: null,
-  KEY: 'ppki_auth_v2', SESS: 'ppki_sess_v2', TRY: 'ppki_try_v2',
-  DEF_USER: 'Admin01', DEF_PASS: 'admin123',
-  MAX_TRY: 5, LOCK_SEC: 60,
-  _pending: null,
-  rec() { try { const r = JSON.parse(localStorage.getItem(this.KEY)); return r && r.user && r.hash ? r : null; } catch (e) { return null; } },
-  saveRec(r) { try { localStorage.setItem(this.KEY, JSON.stringify(r)); return true; } catch (e) { UI.toast('Gagal menyimpan kata laluan (storan penuh).', 'error'); return false; } },
-  fallbackHash(str) {
-    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
-    for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
-    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-    return 'F' + (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0');
-  },
-  async hash(pw, salt, force) {
-    const str = salt + '|' + pw;
-    if (force !== 'F') {
-      try {
-        if (window.crypto && crypto.subtle) {
-          const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-          return 'S' + Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
-        }
-      } catch (e) { /* guna kaedah sandaran */ }
-    }
-    return this.fallbackHash(str);
-  },
-  salt() { try { const a = new Uint8Array(12); crypto.getRandomValues(a); return Array.from(a).map(x => x.toString(16).padStart(2, '0')).join(''); } catch (e) { return String(Math.random()).slice(2) + Date.now(); } },
-  async check(u, p) {
-    const r = this.rec();
-    if (!r) return u.toLowerCase() === this.DEF_USER.toLowerCase() && p === this.DEF_PASS;   // belum pernah tukar = akaun lalai
-    if (u.toLowerCase() !== r.user.toLowerCase()) return false;
-    return (await this.hash(p, r.salt, r.hash[0])) === r.hash;
-  },
-  validate(pw, user) {
-    if (pw.length < 8) return 'Kata laluan mesti sekurang-kurangnya 8 aksara.';
-    if (!/[A-Za-z]/.test(pw) || !/\d/.test(pw)) return 'Kata laluan mesti mengandungi huruf dan nombor.';
-    if (pw.toLowerCase() === this.DEF_PASS) return 'Kata laluan baharu tidak boleh sama dengan kata laluan lalai.';
-    if (user && pw.toLowerCase() === String(user).toLowerCase()) return 'Kata laluan tidak boleh sama dengan nama pengguna.';
-    return '';
-  },
-  // ---- sekatan percubaan salah
-  tries() { try { return JSON.parse(localStorage.getItem(this.TRY)) || { n: 0, until: 0 }; } catch (e) { return { n: 0, until: 0 }; } },
-  lockLeft() { const t = this.tries(); return Math.max(0, Math.ceil((t.until - Date.now()) / 1000)); },
-  fail() {
-    const t = this.tries(); t.n = (t.until && t.until < Date.now() ? 0 : t.n) + 1;
-    if (t.n >= this.MAX_TRY) { t.until = Date.now() + this.LOCK_SEC * 1000; t.n = 0; }
-    try { localStorage.setItem(this.TRY, JSON.stringify(t)); } catch (e) { /* abaikan */ }
-    return this.MAX_TRY - t.n;
-  },
-  clearFail() { try { localStorage.removeItem(this.TRY); } catch (e) { /* abaikan */ } },
-  // ---- paparan
+  user: null, email: null,
+  SESS: 'ppki_sess_v3',
   msg(id, text) { const e = $('#' + id); if (!e) return; e.textContent = text || ''; e.classList.toggle('hidden', !text); },
   showLogin() {
-    this.user = null; this._pending = null;
+    this.user = null; this.email = null;
     document.body.classList.remove('authed');
     $('#loginScreen').classList.remove('hidden');
-    $('#changeForm').classList.add('hidden'); $('#loginForm').classList.remove('hidden');
-    $('#lgSub').textContent = 'Sila log masuk untuk meneruskan';
-    $('#lgUser').value = ''; $('#lgPass').value = ''; $('#lgPass').type = 'password'; this.msg('lgErr', '');
-    setTimeout(() => $('#lgUser').focus(), 50);
+    $('#lgSub').textContent = 'Log masuk dengan emel & PIN';
+    $('#lgUser').value = Sync.cfg().email || ''; $('#lgPass').value = ''; $('#lgPass').type = 'password'; this.msg('lgErr', '');
+    setTimeout(() => ($('#lgUser').value ? $('#lgPass') : $('#lgUser')).focus(), 50);
   },
-  showChange() {
-    $('#loginForm').classList.add('hidden'); $('#changeForm').classList.remove('hidden');
-    $('#lgSub').textContent = 'Tetapkan kata laluan baharu';
-    $('#cgNew').value = ''; $('#cgNew2').value = ''; this.msg('cgErr', '');
-    setTimeout(() => $('#cgNew').focus(), 50);
-  },
-  open(user) {
-    this.user = user;
-    try { sessionStorage.setItem(this.SESS, JSON.stringify({ u: user })); } catch (e) { /* abaikan */ }
+  open(name, email) {
+    this.user = name || email; this.email = email;
+    try { localStorage.setItem(this.SESS, JSON.stringify({ e: email })); } catch (e) { /* abaikan */ }
     document.body.classList.add('authed');
     $('#loginScreen').classList.add('hidden');
-    const a = $('#accUser'); if (a) a.textContent = user;
+    const a = $('#accUser'); if (a) a.textContent = this.user;
+    const m = $('#accEmail'); if (m) m.textContent = email;
     App.enter();
+    Sync.start();
   },
-  logout() {
-    if (this.user) Log.add('Log keluar', this.user);
-    try { sessionStorage.removeItem(this.SESS); } catch (e) { /* abaikan */ }
+  async logout() {
+    if (this.user) Log.add('Log keluar', this.email || '');
+    Sync.stop();
+    try { if (Sync.cfg().dirty) await Sync.push(); } catch (e) { /* abaikan */ }
+    try { localStorage.removeItem(this.SESS); } catch (e) { /* abaikan */ }
     if (UI.hasModal()) UI.closeModal();
     Router.closeDrawer && Router.closeDrawer();
     this.showLogin();
   },
   start() {
     this.bind();
-    let ss = null; try { ss = JSON.parse(sessionStorage.getItem(this.SESS)); } catch (e) { /* abaikan */ }
-    const r = this.rec();
-    if (ss && ss.u && r && r.user.toLowerCase() === String(ss.u).toLowerCase()) this.open(r.user);
+    let ss = null; try { ss = JSON.parse(localStorage.getItem(this.SESS)); } catch (e) { /* abaikan */ }
+    const c = Sync.cfg();
+    if (ss && ss.e && c.email && c.pin && c.email.toLowerCase() === String(ss.e).toLowerCase()) this.open(c.name || c.email, c.email);
     else this.showLogin();
   },
   async submitLogin() {
-    const u = $('#lgUser').value.trim(), p = $('#lgPass').value;
-    const left = this.lockLeft();
-    if (left > 0) return this.msg('lgErr', `Terlalu banyak percubaan salah. Cuba lagi dalam ${left} saat.`);
-    if (!u || !p) return this.msg('lgErr', 'Sila isi nama pengguna dan kata laluan.');
-    if (!(await this.check(u, p))) {
-      const rem = this.fail();
-      return this.msg('lgErr', rem > 0 && rem < this.MAX_TRY ? `Nama pengguna atau kata laluan salah. (${rem} percubaan lagi)` : (this.lockLeft() > 0 ? `Terlalu banyak percubaan salah. Cuba lagi dalam ${this.lockLeft()} saat.` : 'Nama pengguna atau kata laluan salah.'));
-    }
-    this.clearFail();
-    const r = this.rec();
-    if (!r) { this._pending = this.DEF_USER; this.showChange(); return; }     // akaun lalai -> wajib tukar
-    Log.add('Log masuk', r.user, r.user);
-    this.open(r.user);
-  },
-  async submitChange() {
-    const a = $('#cgNew').value, b = $('#cgNew2').value, user = this._pending;
-    if (!user) return this.showLogin();
-    const bad = this.validate(a, user); if (bad) return this.msg('cgErr', bad);
-    if (a !== b) return this.msg('cgErr', 'Pengesahan kata laluan tidak sepadan.');
-    const salt = this.salt();
-    if (!this.saveRec({ user, salt, hash: await this.hash(a, salt), changed: new Date().toISOString() })) return;
-    Log.add('Tukar kata laluan', 'Kata laluan lalai ditukar', user);
-    Log.add('Log masuk', user, user);
-    this._pending = null;
-    UI.toast('Kata laluan berjaya ditukar.');
-    this.open(user);
-  },
-  async submitSettings() {
-    const o = $('#accOld').value, a = $('#accNew').value, b = $('#accNew2').value;
-    if (!o || !a || !b) return this.msg('accErr', 'Sila isi semua ruangan.');
-    if (!(await this.check(this.user, o))) return this.msg('accErr', 'Kata laluan semasa tidak betul.');
-    const bad = this.validate(a, this.user); if (bad) return this.msg('accErr', bad);
-    if (a === o) return this.msg('accErr', 'Kata laluan baharu mesti berbeza daripada yang semasa.');
-    if (a !== b) return this.msg('accErr', 'Pengesahan kata laluan tidak sepadan.');
-    const salt = this.salt();
-    if (!this.saveRec({ user: this.user, salt, hash: await this.hash(a, salt), changed: new Date().toISOString() })) return;
-    Log.add('Tukar kata laluan', this.user);
-    ['accOld', 'accNew', 'accNew2'].forEach(id => $('#' + id).value = ''); this.msg('accErr', '');
-    UI.toast('Kata laluan berjaya ditukar.');
+    const email = $('#lgUser').value.trim().toLowerCase(), pin = $('#lgPass').value.trim();
+    if (!email || !pin) return this.msg('lgErr', 'Sila isi emel dan PIN.');
+    const btn = $('#loginForm button[type=submit]');
+    btn.disabled = true; btn.textContent = 'Menyemak…'; this.msg('lgErr', '');
+    try {
+      const c = Sync.cfg();
+      let r;
+      try { r = await Sync.call({ action: 'load' }, { email, pin }); }
+      catch (e) {   // tiada internet: benarkan hanya akaun yang pernah log masuk di peranti ini
+        if (c.email && c.email.toLowerCase() === email && c.pin === pin) { this.open(c.name || email, email); return; }
+        return this.msg('lgErr', 'Tiada sambungan internet. Log masuk luar talian hanya untuk akaun yang pernah log masuk di peranti ini.');
+      }
+      if (!r.ok) return this.msg('lgErr', r.error || 'Gagal log masuk.');
+
+      const owner = String(c.owner || c.email || '').toLowerCase();   // pemilik data yang kini ada dalam peranti
+      const patch = { email, pin, name: r.nama || email, owner: email };
+      if (owner && owner !== email) {
+        // Akaun lain pernah guna peranti ini: buang data tempatan supaya TIDAK bercampur / terhantar ke akaun ini
+        if (c.dirty && !confirm('Peranti ini ada perubahan akaun ' + owner + ' yang belum disimpan ke Google Sheets.\nTeruskan dan buang perubahan itu?')) return;
+        localStorage.removeItem(APP.KEY_LOG);
+        if (r.data) { localStorage.setItem(APP.KEY_DATA, r.data); patch.lastSync = r.ts; }
+        else { localStorage.setItem(APP.KEY_DATA, JSON.stringify({ students: [], attendance: {}, settings: { waktuMasuk: '07:30' } })); patch.lastSync = 0; }
+        patch.dirty = !r.data;
+      } else if (!owner) {
+        // Peranti belum dimiliki mana-mana akaun
+        if (r.data) { localStorage.setItem(APP.KEY_DATA, r.data); patch.lastSync = r.ts; patch.dirty = false; }
+        else if (!confirm('Akaun ini belum ada data di Google Sheets.\n\nOK = guna data yang sedia ada dalam peranti ini\nBatal = mula dengan data kosong')) {
+          localStorage.setItem(APP.KEY_DATA, JSON.stringify({ students: [], attendance: {}, settings: { waktuMasuk: '07:30' } }));
+          patch.lastSync = 0; patch.dirty = true;
+        } else { patch.lastSync = 0; patch.dirty = true; }
+      }
+      // pemilik sama: biarkan Sync.pull() (selepas masuk) menyelaraskan data & konflik
+      Sync.set(patch);
+      Store.load(); Log.load(); Logo.apply();
+      Log.add('Log masuk', email, patch.name);
+      this.open(patch.name, email);
+    } finally { btn.disabled = false; btn.textContent = 'Log Masuk'; }
   },
   bind() {
     $('#loginForm').addEventListener('submit', e => { e.preventDefault(); this.submitLogin(); });
-    $('#changeForm').addEventListener('submit', e => { e.preventDefault(); this.submitChange(); });
-    $('#cgCancel').addEventListener('click', () => this.showLogin());
     $('#btnLogout').addEventListener('click', () => this.logout());
     $('#btnLogout2').addEventListener('click', () => this.logout());
-    $('#btnChangePw').addEventListener('click', () => this.submitSettings());
     $('#loginScreen').addEventListener('click', e => {
       const b = e.target.closest('[data-eye]'); if (!b) return;
       const i = $('#' + b.dataset.eye); i.type = i.type === 'password' ? 'text' : 'password';
@@ -1308,22 +1226,20 @@ const Router = {
 /* ---------- LOGO (boleh ditukar) ---------- */
 const Logo = {
   MAX: 220,
+  DEFAULT: 'data:image/png;base64,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',   // logo asal: Sek. Keb. Telok Gong
+  src() { return this.get() || this.DEFAULT; },
   get() { return (Store.data && Store.data.settings && Store.data.settings.logo) || ''; },
   // Isi semua slot logo: logo tersuai jika ada, jika tidak logo PPKI asal (SVG)
   apply() {
     const l = this.get();
     $$('.logo-slot').forEach(el => {
-      el.innerHTML = l
-        ? `<img src="${esc(l)}" alt="Logo" class="w-full h-full object-contain">`
-        : '<svg class="w-full h-full"><use href="#logoPPKI"/></svg>';
+      el.innerHTML = `<img src="${esc(this.src())}" alt="Logo SKTG" class="w-full h-full object-contain">`;
     });
     const rb = $('#btnLogoReset'); if (rb) rb.disabled = !l;
     try {   // ikon tab pelayar
       let ic = document.querySelector('link[rel=icon][data-logo]');
-      if (l) {
-        if (!ic) { ic = document.createElement('link'); ic.rel = 'icon'; ic.setAttribute('data-logo', '1'); document.head.appendChild(ic); }
-        ic.href = l;
-      } else if (ic) ic.remove();
+      if (!ic) { ic = document.createElement('link'); ic.rel = 'icon'; ic.setAttribute('data-logo', '1'); document.head.appendChild(ic); }
+      ic.href = this.src();
     } catch (e) { /* abaikan */ }
   },
   // Kecilkan imej (kekalkan nisbah & lutsinar) -> PNG data URL
@@ -1349,7 +1265,7 @@ const Logo = {
   },
   reset() {
     if (!this.get()) return;
-    UI.confirm('Kembalikan logo kepada logo PPKI asal?', () => {
+    UI.confirm('Kembalikan logo kepada logo Sek. Keb. Telok Gong?', () => {
       delete Store.data.settings.logo;
       Store.save(); Log.add('Reset logo', 'Logo dikembalikan kepada asal'); this.apply();
       UI.toast('Logo asal dipulihkan.', 'warn');
@@ -2419,7 +2335,7 @@ const Rep = {
     if (typeof doc.autoTable !== 'function') { UI.toast('Pemalam jadual PDF gagal dimuatkan.', 'error'); return; }
     const c = Stats.counts(records), pct = Stats.pct(c);
     doc.setFontSize(16); doc.text('LAPORAN KEHADIRAN PPKI SKTG', 14, 16);
-    if (Logo.get()) { try { const pr = doc.getImageProperties(Logo.get()); const hh = 16, ww = Math.min(40, hh * pr.width / pr.height); doc.addImage(Logo.get(), 'PNG', 196 - ww, 6, ww, hh); } catch (e) { /* abaikan logo */ } }
+    if (Logo.src()) { try { const pr = doc.getImageProperties(Logo.src()); const hh = 16, ww = Math.min(40, hh * pr.width / pr.height); doc.addImage(Logo.src(), 'PNG', 196 - ww, 6, ww, hh); } catch (e) { /* abaikan logo */ } }
     doc.setFontSize(10);
     doc.text(`Tempoh: ${this.periodLabel()}   |   Dijana: ${fmtLong(new Date())}`, 14, 23);
     doc.text(`Hadir: ${c.hadir}   Tidak Hadir: ${c.tidak}   Peratus kehadiran: ${pct === null ? '-' : pct + '%'}`, 14, 29);
@@ -2448,7 +2364,7 @@ const Rep = {
     const stats = Stats.perStudent(students, records);
     const kelas = $('#repKelas').value;
     $('#printArea').innerHTML = `
-      ${Logo.get() ? `<img src="${esc(Logo.get())}" alt="Logo" style="height:56px;float:right;margin-left:12px">` : ''}
+      <img src="${esc(Logo.src())}" alt="Logo" style="height:56px;float:right;margin-left:12px">
       <h1>LAPORAN KEHADIRAN PPKI SKTG</h1>
       <p>Tempoh: <b>${esc(this.periodLabel())}</b> ${kelas ? '&nbsp;|&nbsp; Kelas: <b>' + esc(kelas) + '</b>' : ''}</p>
       <p>Dijana pada: ${esc(fmtLong(new Date()))} oleh ${esc(Auth.user || '')}</p>
@@ -3227,7 +3143,7 @@ const App = {
     Sync.bindUI();
     Clock.start();
     // Buang sisa data akaun/sesi versi lama (kunci v1)
-    try { ['ppki_users_v1', 'ppki_session_v1', 'ppki_lock_v1'].forEach(k => localStorage.removeItem(k)); } catch (e) { /* abaikan */ }
+    try { ['ppki_users_v1', 'ppki_session_v1', 'ppki_lock_v1', 'ppki_auth_v2', 'ppki_sess_v2', 'ppki_try_v2'].forEach(k => localStorage.removeItem(k)); } catch (e) { /* abaikan */ }
     Auth.start();   // papar skrin log masuk (aplikasi dibuka selepas log masuk berjaya)
   }
 };
