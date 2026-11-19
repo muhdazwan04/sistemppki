@@ -299,6 +299,7 @@
             <div>
               <h2 class="text-2xl font-extrabold">Papan Pemuka</h2>
               <p id="dashSub" class="text-sm text-slate-500 dark:text-slate-400"></p>
+              <div id="dashPresence" class="flex flex-wrap"></div>
             </div>
             <div class="flex flex-wrap gap-2">
               <button class="btn-primary" data-go="kehadiran">✅ Rekod Kehadiran Hari Ini</button>
@@ -413,6 +414,7 @@
             <div>
               <h2 class="text-2xl font-extrabold">Rekod Kehadiran</h2>
               <p id="attDateLabel" class="text-sm text-slate-500 dark:text-slate-400"></p>
+              <div id="attPresence" class="flex flex-wrap"></div>
             </div>
             <div class="flex flex-wrap gap-2">
               <button id="btnAllPresent" class="btn-green">✔ Tandakan Semua Hadir</button>
@@ -970,6 +972,7 @@ const Store = {
   // Dipanggil selepas setiap perubahan (auto-save)
   save() {
     try {
+      Sync.stamp();   // tanda siapa + bila setiap rekod murid/kehadiran berubah
       localStorage.setItem(APP.KEY_DATA, JSON.stringify(this.data));
       Sync.queue();
       this.touchSaved();
@@ -1005,8 +1008,8 @@ const Store = {
 /* ---------- 4b. SYNC GOOGLE SHEETS ---------- */
 const Sync = {
   KEY: 'ppki_sync_v1', _t: null, _poll: null,
-  DEFAULT_URL: 'https://script.google.com/macros/s/AKfycbz4Gw2kRpKTAaqBNhGIjWacZkHi4lE1BwfQ0OmDoGRPCBS9oUm3HN2Nc6H3zVs6wYWt/exec',
-  cfg() { let c = {}; try { c = JSON.parse(localStorage.getItem(this.KEY)) || {}; } catch (e) { /* abaikan */ } if (!c.url || ['AKfycbwYMnab9sZvcpAXgr8as5EbSdaKlGchRTbKb05JKftgcGGM1C-MjYimhRHEU-UIb9I_2w','AKfycbw8vuqGLh0MFISgVpZI2nmoFXfbCHxDHqGJwXxnH653lOd_2rKwpHNW8_AjIK-agFD1kQ','AKfycbzZN_4VVSQf93K6ju2L09zEcbojyMAMLeUyWFma2CKLoNz0pxjB-IEawY17HD0IMRDdmw','AKfycbzQ-oNC7MlsyB0q4RtPf4bjz3-2fEyl6uhRorcgQtDkorKO6TwjiPoLoKT59ykp3ajJsg','AKfycbwuayRAfyv2v39rvqX2KlFglryN_8SP9FtSoTPLRnesgCEkPCZ2TeshTcE1pmiVbShkuw'].some(k => c.url.indexOf(k) >= 0)) c.url = this.DEFAULT_URL; return c; },
+  DEFAULT_URL: 'https://script.google.com/macros/s/AKfycbz_7vBiL5qRwLQbX0MhNGSoG6nNlznXXqwrNRhzdDa5gExH0rrZGyR8o4VW4DkCs66tzQ/exec',
+  cfg() { let c = {}; try { c = JSON.parse(localStorage.getItem(this.KEY)) || {}; } catch (e) { /* abaikan */ } if (!c.url || ['AKfycbz4Gw2kRpKTAaqBNhGIjWacZkHi4lE1BwfQ0OmDoGRPCBS9oUm3HN2Nc6H3zVs6wYWt','AKfycbwYMnab9sZvcpAXgr8as5EbSdaKlGchRTbKb05JKftgcGGM1C-MjYimhRHEU-UIb9I_2w','AKfycbw8vuqGLh0MFISgVpZI2nmoFXfbCHxDHqGJwXxnH653lOd_2rKwpHNW8_AjIK-agFD1kQ','AKfycbzZN_4VVSQf93K6ju2L09zEcbojyMAMLeUyWFma2CKLoNz0pxjB-IEawY17HD0IMRDdmw','AKfycbzQ-oNC7MlsyB0q4RtPf4bjz3-2fEyl6uhRorcgQtDkorKO6TwjiPoLoKT59ykp3ajJsg','AKfycbwuayRAfyv2v39rvqX2KlFglryN_8SP9FtSoTPLRnesgCEkPCZ2TeshTcE1pmiVbShkuw'].some(k => c.url.indexOf(k) >= 0)) c.url = this.DEFAULT_URL; return c; },
   ready() { const c = this.cfg(); return !!(c.url && c.email && c.pin); },
   set(o) { try { localStorage.setItem(this.KEY, JSON.stringify(Object.assign(this.cfg(), o))); } catch (e) { /* abaikan */ } },
   say(m) { const el = document.getElementById('syncStatus'); if (el) el.textContent = m; },
@@ -1020,7 +1023,7 @@ const Sync = {
     if (!this.ready() || !Auth.user) return;
     this.set({ dirty: true });
     clearTimeout(this._t);
-    this._t = setTimeout(() => this.push(), 3000);
+    this._t = setTimeout(() => { this.push(); this.syncA(); }, 3000);
   },
   hash(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; },
   // Senarai murid dikongsi semua guru: terima tatasusunan, atau objek lama {students:[...]}
@@ -1038,23 +1041,108 @@ const Sync = {
     let d = null; try { d = r.data ? JSON.parse(r.data) : null; } catch (e) { d = null; }
     const st = this.parseStudents(r.students);
     if (!d) d = fallback || { students: [], attendance: {}, settings: { waktuMasuk: '07:30' } };
+    if (!d.attendance || typeof d.attendance !== 'object') d.attendance = {};
     if (st) { d.students = st; this.remember(st); } else if (!Array.isArray(d.students)) d.students = [];
-    const patch = { lastSync: r.data ? r.ts : 0, dirty: !r.data, sts: st ? r.sts : 0, sh: st ? this.hash(JSON.stringify(st)) : null };
+    const patch = { lastSync: r.data ? r.ts : 0, dirty: !r.data, sts: st ? r.sts : 0, sh: st ? this.hash(JSON.stringify(st)) : null, ats: 0, amig: 0 };
     if (st && this._m) patch.meta = this._m;
     return { json: JSON.stringify(d), patch };
   },
   // ---- Jejak siapa mengubah setiap murid ----
   HK: 'ppki_stuh_v1',
-  sig(s) { const c = Object.assign({}, s); delete c.updBy; delete c.updAt; return this.hash(JSON.stringify(c)); },
-  hmap() { try { return JSON.parse(localStorage.getItem(this.HK)) || null; } catch (e) { return null; } },
-  remember(arr) { const m = {}; (arr || []).forEach(x => { m[x.id] = this.sig(x); }); try { localStorage.setItem(this.HK, JSON.stringify(m)); } catch (e) { /* abaikan */ } },
-  // Tanda murid yang berubah sejak disegerak kali terakhir dengan nama guru + masa
-  stamp() {
-    const arr = (Store.data && Store.data.students) || [], m = this.hmap();
-    if (!m) { this.remember(arr); return; }
-    const now = new Date().toISOString(); let ch = false;
-    arr.forEach(x => { if (m[x.id] !== this.sig(x)) { x.updBy = Auth.user || '-'; x.updAt = now; ch = true; } });
-    if (ch) { try { localStorage.setItem(APP.KEY_DATA, JSON.stringify(Store.data)); } catch (e) { /* abaikan */ } }
+  sig(s) { const c = Object.assign({}, s); delete c.updBy; delete c.updAt; delete c.by; delete c.at; delete c.sat; return this.hash(JSON.stringify(c)); },
+  // Snapshot dalam memori (dibina semula selepas log masuk / selepas data terima dari pelayan)
+  remember(arr) { const m = {}; (arr || []).forEach(x => { m[x.id] = this.sig(x); }); this._ssnap = m; },
+  rebase() {
+    this.remember((Store.data && Store.data.students) || []);
+    this._asnap = this.snapA((Store.data && Store.data.attendance) || {});
+  },
+  // Dipanggil oleh Store.save(): tanda murid / rekod kehadiran yang berubah dengan nama guru + masa
+  stamp() { this.stampS(); this.stampA(); },
+  stampS() {
+    const arr = (Store.data && Store.data.students) || [];
+    if (!this._ssnap) return false;
+    const now = new Date().toISOString(), ns = {}; let ch = false;
+    arr.forEach(x => { const g = this.sig(x); ns[x.id] = g; if (this._ssnap[x.id] !== g) { x.updBy = Auth.user || '-'; x.updAt = now; ch = true; } });
+    this._ssnap = ns;
+    return ch;
+  },
+  // ---- KEHADIRAN DIKONGSI (hanya perubahan dihantar / diterima) ----
+  PQ: 'ppki_hq_v1',
+  pend() { try { return JSON.parse(localStorage.getItem(this.PQ)) || {}; } catch (e) { return {}; } },
+  setPend(p) { try { localStorage.setItem(this.PQ, JSON.stringify(p)); } catch (e) { /* abaikan */ } },
+  snapA(att) { const m = {}; Object.keys(att || {}).forEach(dt => Object.keys(att[dt]).forEach(id => { m[dt + '|' + id] = this.sig(att[dt][id]); })); return m; },
+  stampA() {
+    const att = (Store.data && Store.data.attendance) || {};
+    if (!this._asnap) return false;
+    const old = this._asnap, ns = {}, now = new Date().toISOString(), me = Auth.user || '-';
+    let pend = null; const P = () => pend || (pend = this.pend());
+    Object.keys(att).forEach(dt => Object.keys(att[dt]).forEach(id => {
+      const k = dt + '|' + id, r = att[dt][id], g = this.sig(r);
+      ns[k] = g;
+      if (old[k] !== g) { r.by = me; r.at = now; P()[k] = [dt, id, r, now]; }
+    }));
+    Object.keys(old).forEach(k => { if (!(k in ns)) { const i = k.indexOf('|'); P()[k] = [k.slice(0, i), k.slice(i + 1), null, now]; } });
+    this._asnap = ns;
+    if (pend) { this.setPend(pend); return true; }
+    return false;
+  },
+  // Sekali sahaja: naikkan rekod kehadiran lama (peribadi) ke data dikongsi, hanya di tempat yang masih kosong
+  migrateA() {
+    const att = (Store.data && Store.data.attendance) || {}, p = this.pend();
+    Object.keys(att).forEach(dt => Object.keys(att[dt]).forEach(id => {
+      const k = dt + '|' + id, r = att[dt][id];
+      if (!r.at && !p[k]) p[k] = [dt, id, r, '1970-01-01T00:00:00.000Z'];
+    }));
+    this.setPend(p);
+  },
+  async syncA() {
+    if (!this.ready() || !Auth.user || !Store.data) return;
+    if (this._ab) { this._aq = true; return; }
+    this._ab = true;
+    try {
+      const c = this.cfg();
+      if (c.amig !== 1) this.migrateA();
+      const pend = this.pend(), keys = Object.keys(pend);
+      const r = await this.call({ action: 'hadir', since: c.ats || 0, ops: keys.map(k => pend[k]) });
+      if (!r.ok) { this.say('⚠️ ' + (r.error || 'Gagal segerak kehadiran')); return; }
+      const cur = this.pend();
+      keys.forEach(k => { if (cur[k] && cur[k][3] === pend[k][3]) delete cur[k]; });   // buang yang sudah dihantar
+      this.setPend(cur);
+      this.applyA(r, cur);
+      this.set({ ats: r.ats || 0, amig: 1 });
+      this.say('✔ Kehadiran diselaraskan • ' + nowTime());
+      if (this._stale && !(Att.typing() || UI.hasModal())) { this._stale = false; Router.refresh(); }
+    } catch (e) { this.say('⚠️ Tiada internet. Kehadiran akan dihantar semula.'); }
+    finally { this._ab = false; if (this._aq) { this._aq = false; setTimeout(() => this.syncA(), 300); } }
+  },
+  // Gabungkan perubahan guru lain ke data tempatan (rekod yang masih menunggu dihantar kekal milik peranti ini)
+  applyA(r, pend) {
+    const d = Store.data; if (!d) return;
+    const att = d.attendance = d.attendance || {};
+    const strip = o => { if (!o) return o; const c = Object.assign({}, o); delete c.sat; return c; };
+    const same = (a, b) => JSON.stringify(strip(a)) === JSON.stringify(strip(b));
+    let ch = false;
+    if (r.full) {
+      Object.keys(att).forEach(dt => Object.keys(att[dt]).forEach(id => {
+        if (pend[dt + '|' + id]) return;
+        if (!(r.a && r.a[dt] && r.a[dt][id])) { delete att[dt][id]; ch = true; }
+      }));
+      Object.keys(att).forEach(dt => { if (!Object.keys(att[dt]).length) delete att[dt]; });
+    }
+    Object.keys(r.a || {}).forEach(dt => Object.keys(r.a[dt]).forEach(id => {
+      if (pend[dt + '|' + id]) return;
+      const rec = r.a[dt][id];
+      if (!att[dt]) att[dt] = {};
+      if (!same(att[dt][id], rec)) ch = true;
+      att[dt][id] = rec;
+    }));
+    (r.d || []).forEach(k => {
+      if (pend[k]) return;
+      const i = k.indexOf('|'), dt = k.slice(0, i), id = k.slice(i + 1);
+      if (att[dt] && att[dt][id]) { delete att[dt][id]; if (!Object.keys(att[dt]).length) delete att[dt]; ch = true; }
+    });
+    this._asnap = this.snapA(att);   // perubahan dari guru lain bukan suntingan peranti ini
+    if (ch) { try { localStorage.setItem(APP.KEY_DATA, JSON.stringify(d)); } catch (e) { /* abaikan */ } this._stale = true; }
   },
   // Murid = dikongsi semua akaun. Selebihnya (kehadiran, PPM, tetapan) = peribadi setiap akaun.
   async push(force, forceStudents) {
@@ -1062,7 +1150,7 @@ const Sync = {
     try {
       this.stamp();
       const d = Store.data || {};
-      const rest = Object.assign({}, d); delete rest.students;
+      const rest = Object.assign({}, d); delete rest.students; if (c.amig === 1) delete rest.attendance;   // kehadiran kini dikongsi (Data_Hadir)
       const stStr = JSON.stringify(d.students || []), h = this.hash(stStr);
       const sendS = !!forceStudents || (c.sh != null && c.sh !== h);   // hantar murid hanya jika berubah
       const pl = { action: 'save', base: c.lastSync || 0, force: !!force, data: JSON.stringify(rest) };
@@ -1112,7 +1200,7 @@ const Sync = {
       const applyS = needS && (!sChanged || forceApply);
       if (applyP || applyS) {
         let d = Store.data;
-        if (applyP) { d = JSON.parse(r.data); d.students = (Store.data && Store.data.students) || []; }
+        if (applyP) { d = JSON.parse(r.data); d.students = (Store.data && Store.data.students) || []; if (c.amig === 1 || !d.attendance) d.attendance = (Store.data && Store.data.attendance) || {}; }
         if (applyS) d.students = st;
         localStorage.setItem(APP.KEY_DATA, JSON.stringify(d));
         const patch = { dirty: applyP ? false : dirty };
@@ -1128,31 +1216,35 @@ const Sync = {
   },
   // Dipanggil selepas log masuk: segerak sekarang + semak perubahan dari peranti lain setiap 60 saat
   start() {
+    this.rebase();
     this.pull();
-    clearInterval(this._poll);
+    this.syncA();
+    clearInterval(this._poll); clearInterval(this._pollA);
+    this._pollA = setInterval(() => { if (document.hidden || !Auth.user) return; this.syncA(); }, 30000);
     this._poll = setInterval(() => {
       if (document.hidden || !Auth.user) return;
       if ((typeof Att !== 'undefined' && Att.typing()) || UI.hasModal()) return;   // jangan ganggu semasa menaip
       this.pull();
     }, 60000);
   },
-  stop() { clearInterval(this._poll); clearTimeout(this._t); },
+  stop() { clearInterval(this._poll); clearInterval(this._pollA); clearTimeout(this._t); },
   bindUI() {
     const u = document.getElementById('syncUrl');
     if (!u) return;
     u.value = this.cfg().url || '';
     this.say(this.ready() ? 'Sync aktif.' : 'Log masuk untuk mula menyegerak.');
     document.getElementById('btnSyncSave').addEventListener('click', () => { this.set({ url: u.value.trim() || this.DEFAULT_URL }); this.say('URL disimpan.'); });
-    document.getElementById('btnSyncNow').addEventListener('click', async () => { this.say('Menyegerak…'); await this.pull(); });
-    document.addEventListener('visibilitychange', () => { if (!document.hidden && Auth.user) this.pull(); });
+    document.getElementById('btnSyncNow').addEventListener('click', async () => { this.say('Menyegerak…'); await this.pull(); await this.syncA(); });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && Auth.user) { this.pull(); this.syncA(); } });
   }
 };
 
-/* ---------- 4c. PRESENCE: siapa sedang mengedit murid ---------- */
-// PENTING: tukar ENABLED kepada true HANYA selepas kod Apps Script (action 'presence') ditampal & di-deploy semula.
+/* ---------- 4c. PRESENCE: siapa sedang dalam sistem / sedang mengedit ---------- */
+// Sasaran (target): ID murid = sedang edit murid; 'att|YYYY-MM-DD' = sedang buka/tanda kehadiran tarikh itu; null = dalam sistem sahaja.
+// Memerlukan kod Apps Script terkini (action 'presence'). Jika belum dikemas kini, ciri ini mati sendiri tanpa ralat.
 const Presence = {
-  ENABLED: false,
-  list: [], target: null, _hb: null, _poll: null, off: false,
+  ENABLED: true,
+  list: [], target: null, _hb: null, off: false, _sig: '', _vb: false,
   async call(p) {
     if (!this.ENABLED || this.off || !Sync.ready()) return null;
     try {
@@ -1161,28 +1253,47 @@ const Presence = {
       return r;
     } catch (e) { return null; }
   },
-  apply(r) { this.list = r.list.filter(x => x.email !== Auth.email); if (Router.cur === 'murid' && !UI.hasModal()) Students.render(); },
-  others(id) { return this.list.filter(x => x.target === id); },
-  async set(id) {
-    this.target = id;
-    clearInterval(this._hb);
-    const r = await this.call({ op: 'set', target: id }); if (r) this.apply(r);
-    this._hb = setInterval(() => { if (this.target) this.call({ op: 'set', target: this.target }); }, 20000);
+  apply(r) {
+    this.list = r.list.filter(x => x.email !== Auth.email);
+    const sig = JSON.stringify(this.list.map(x => [x.email, x.target]));
+    if (sig === this._sig) return;
+    this._sig = sig;
+    this.paint();
   },
-  async clear() {
-    if (!this.target) return;
-    this.target = null; clearInterval(this._hb);
-    const r = await this.call({ op: 'clear' }); if (r) this.apply(r);
+  paint() {
+    if (Router.cur === 'murid' && !UI.hasModal()) Students.render();
+    else if (Router.cur === 'kehadiran') Att.renderPresence();
+    else if (Router.cur === 'dashboard') Dash.renderPresence();
+  },
+  others(id) { return this.list.filter(x => x.target === id); },
+  label(x) {
+    const t = x.target ? String(x.target) : '';
+    if (!t) return 'sedang dalam sistem';
+    if (t.indexOf('att|') === 0) return 'sedang tanda kehadiran ' + fmtShort(t.slice(4));
+    const s = Students.get(t);
+    return 'sedang edit murid ' + (s ? shortName(s.name) : t);
+  },
+  async ping() { const r = await this.call({ op: 'set', target: this.target }); if (r) this.apply(r); },
+  async set(id) { this.target = id; await this.ping(); },
+  async clear() { if (!this.target) return; this.target = null; await this.ping(); },
+  // Dipanggil setiap kali tukar halaman
+  page(p) {
+    if (p === 'kehadiran') this.set('att|' + Att.date);
+    else if (p === 'murid' && Students.editingId) this.set(Students.editingId);
+    else if (this.target) this.clear();
   },
   start() {
     if (!this.ENABLED) return;
-    clearInterval(this._poll);
-    this._poll = setInterval(async () => {
-      if (document.hidden || !Auth.user || Router.cur !== 'murid') return;
-      const r = await this.call({ op: 'list' }); if (r) this.apply(r);
-    }, 15000);
+    clearInterval(this._hb);
+    this.ping();
+    this._hb = setInterval(() => { if (!document.hidden && Auth.user) this.ping(); }, 30000);
+    if (!this._vb) { this._vb = true; document.addEventListener('visibilitychange', () => { if (!document.hidden && Auth.user) this.ping(); }); }
   },
-  stop() { clearInterval(this._poll); clearInterval(this._hb); this.target = null; this.list = []; }
+  stop() {
+    clearInterval(this._hb);
+    if (this.ENABLED && !this.off) this.call({ op: 'leave' });
+    this.target = null; this.list = []; this._sig = '';
+  }
 };
 
 /* ---------- 5. LOG AKTIVITI ---------- */
@@ -1235,6 +1346,7 @@ const Auth = {
     if (this.user) Log.add('Log keluar', this.email || '');
     Sync.stop(); Presence.clear(); Presence.stop();
     try { if (Sync.cfg().dirty) await Sync.push(); } catch (e) { /* abaikan */ }
+    try { await Sync.syncA(); } catch (e) { /* abaikan */ }
     try { localStorage.removeItem(this.SESS); } catch (e) { /* abaikan */ }
     if (UI.hasModal()) UI.closeModal();
     Router.closeDrawer && Router.closeDrawer();
@@ -1507,6 +1619,7 @@ const Router = {
     $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.group ? inRekod : b.dataset.page === p));
     this.closeDrawer();
     this.refresh();
+    Presence.page(p);
     window.scrollTo({ top: 0 });
   },
   refresh() { Students.refreshClassFilters(); PAGES[this.cur].render(); },
@@ -2023,6 +2136,11 @@ const Dash = {
         </table>
       </div>`;
   },
+  // Guru lain yang sedang dalam sistem / sedang mengedit
+  renderPresence() {
+    const el = $('#dashPresence'); if (!el) return;
+    el.innerHTML = Presence.list.map(o => `<span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold mr-1 mt-1 ${o.target ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200'}">${o.target ? '✏️' : '🟢'} ${esc(o.user || o.email)} ${esc(Presence.label(o))}</span>`).join('');
+  },
   render() {
     const now = new Date();
     const today = dateStr(now);
@@ -2088,6 +2206,7 @@ const Dash = {
         </div>
       </div>`;
     }).join('') : '<p class="text-sm text-slate-500">Tiada murid mencapai had amaran. 👍</p>';
+    this.renderPresence();
 
     // Log terkini
     Log.load();
@@ -2115,6 +2234,16 @@ const Att = {
     this.renderCalendar();
     this.renderSummary();
     this.renderList();
+    this.renderPresence();
+  },
+
+  // Guru lain yang sedang membuka / menanda kehadiran
+  renderPresence() {
+    const el = $('#attPresence'); if (!el) return;
+    el.innerHTML = Presence.list.filter(x => x.target && String(x.target).indexOf('att|') === 0).map(o => {
+      const dt = String(o.target).slice(4), same = dt === this.date;
+      return `<span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold mr-1 mt-1 ${same ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}">✏️ ${esc(o.user || o.email)} sedang tanda kehadiran ${esc(fmtShort(dt))}${same ? ' (tarikh ini)' : ''}</span>`;
+    }).join('');
   },
 
   setDate(s) {
@@ -2122,6 +2251,7 @@ const Att = {
     const d = parseDate(s);
     this.cal = { y: d.getFullYear(), m: d.getMonth() };
     this.render();
+    if (Router.cur === 'kehadiran') Presence.set('att|' + s);
   },
 
   // --- Kalendar interaktif ---
@@ -2193,6 +2323,7 @@ const Att = {
       const info = r
         ? `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${STATUS[r.status].badge}">${STATUS[r.status].label}</span>
            <span class="text-[11px] font-mono text-slate-500 dark:text-slate-400">⏱ ${esc(r.time)}</span>
+           ${r.by ? `<span class="text-[11px] text-slate-500 dark:text-slate-400" title="${esc(fmtStamp(r.at))}">👤 ${esc(r.by)}</span>` : ''}
            ${r.status === 'hadir' && r.note ? `<span class="text-[11px] text-slate-600 dark:text-slate-300 truncate max-w-[200px]" title="${esc(r.note)}">📝 ${esc(r.note)}</span>` : ''}`
         : `<span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300">Belum ditanda</span>`;
       // Dropdown sebab (muncul bila Tidak Hadir) + petak teks bila LAIN-LAIN
